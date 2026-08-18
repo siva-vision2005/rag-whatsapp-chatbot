@@ -58,9 +58,9 @@ export default function SettingsModal({
   };
 
   const handleReset = () => {
-    const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+    const defaultUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/chat";
     setMode("live");
-    setApiUrl(`http://${host}:3000/chat`);
+    setApiUrl(defaultUrl);
     setHeaders("{}");
     setError("");
   };

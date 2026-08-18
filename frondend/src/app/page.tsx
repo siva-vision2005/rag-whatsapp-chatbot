@@ -62,10 +62,10 @@ export default function Home() {
     if (savedConfig) {
       try { setConfig(JSON.parse(savedConfig)); } catch (e) {}
     } else {
-      const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+      const defaultUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/chat";
       setConfig({
         mode: "live",
-        apiUrl: `http://${host}:3000/chat`,
+        apiUrl: defaultUrl,
         headers: "{}",
       });
     }
