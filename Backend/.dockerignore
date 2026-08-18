@@ -1,0 +1,12 @@
+node_modules
+auth_info_baileys
+dist
+.env
+.git
+.gitignore
+*.md
+artifacts
+images
+docs
+RAG.zip
+project-tree.txt

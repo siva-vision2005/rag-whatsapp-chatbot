@@ -1,0 +1,44 @@
+{
+  "name": "rag-whatsapp-chatbot",
+  "version": "1.0.0",
+  "description": "WhatsApp RAG Chatbot",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "create-collection": "ts-node src/qdrant/createCollection.ts",
+    "delete-collection": "ts-node src/qdrant/deleteCollection.ts",
+    "create-indexes": "ts-node src/qdrant/createPayloadIndexes.ts",
+    "index-products": "ts-node src/embeddings/indexProducts.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@google/genai": "^2.10.0",
+    "@hapi/boom": "^10.0.1",
+    "@napi-rs/canvas": "^1.0.2",
+    "@qdrant/js-client-rest": "^1.18.0",
+    "@whiskeysockets/baileys": "^6.7.18",
+    "axios": "^1.18.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "googleapis": "^173.0.0",
+    "groq-sdk": "^1.3.0",
+    "openai": "^6.49.0",
+    "pino": "^10.3.1",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.1.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  }
+}
