@@ -180,7 +180,11 @@ export default function ChatMessage({ message, onInspect, isInspected }: Props) 
   return (
     <div className={`flex w-full mb-3.5 ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`relative max-w-[82%] sm:max-w-[70%] px-3 py-2 rounded-xl shadow-[0_1px_0.5px_rgba(0,0,0,.15)] transition-all ${
+        className={`relative ${
+          message.type === "products" || (message.products && message.products.length > 0)
+            ? "w-full max-w-[95%] sm:max-w-[85%]"
+            : "max-w-[88%] sm:max-w-[75%]"
+        } px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl shadow-[0_1px_0.5px_rgba(0,0,0,.15)] transition-all ${
           isUser
             ? "bg-[#005c4b] text-[#e9edef] rounded-tr-none"
             : "bg-[#202c33] text-[#e9edef] rounded-tl-none"

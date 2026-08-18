@@ -364,10 +364,10 @@ export default function Home() {
   );
 
   return (
-    <main className="h-screen h-[100dvh] bg-[#0b141a] flex items-center justify-center p-0 select-none overflow-hidden text-[#e9edef] w-full">
+    <main className="fixed inset-0 bg-[#0b141a] flex flex-col p-0 select-none overflow-hidden text-[#e9edef] w-full h-full">
       
       {/* Container - WhatsApp Split Window Layout */}
-      <div className="flex h-full w-full max-h-[100dvh] overflow-hidden bg-[#111b21] shadow-2xl relative">
+      <div className="flex h-full w-full overflow-hidden bg-[#111b21] relative">
         
         {/* Leftmost Vertical Navigation Rail */}
         {!isMobile && (
@@ -506,7 +506,7 @@ export default function Home() {
 
             {/* Mobile Bottom Navigation Bar */}
             {isMobile && (
-              <div className="h-16 border-t border-[#222e35] bg-[#111b21] flex items-center justify-around text-xs shrink-0 select-none">
+              <div className="h-16 border-t border-[#222e35] bg-[#111b21] flex items-center justify-around text-xs shrink-0 select-none pb-[max(0px,env(safe-area-inset-bottom))]">
                 <button
                   onClick={() => setActiveTab("chats")}
                   className={`flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${

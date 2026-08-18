@@ -67,7 +67,7 @@ export default function ProductCard({ product }: Props) {
   const imageUrl = !imgError && p.image ? p.image : resolveBrandImage(p.name || "");
 
   return (
-    <div className="mb-3 rounded-xl overflow-hidden border border-[#222e35] bg-[#182229] shadow-sm hover:scale-[1.01] transition-transform max-w-[280px]">
+    <div className="mb-3 rounded-xl overflow-hidden border border-[#222e35] bg-[#182229] shadow-sm hover:scale-[1.01] transition-transform w-full max-w-full sm:max-w-[340px]">
       {/* Product Image */}
       <img
         src={imageUrl}
