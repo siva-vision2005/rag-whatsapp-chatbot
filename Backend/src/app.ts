@@ -13,6 +13,10 @@ app.get("/", (req, res) => {
   res.send("RAG WhatsApp Chatbot Running...");
 });
 
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 app.use("/products", productRoutes);
 app.use("/chat", chatRoutes);
 

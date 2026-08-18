@@ -5,6 +5,7 @@ import { MoreVertical, Settings2, ArrowLeft } from "lucide-react";
 interface Props {
   contactName: string;
   statusText: string;
+  isOnline?: boolean;
   onOpenSettings: () => void;
   onBack?: () => void;
 }
@@ -12,6 +13,7 @@ interface Props {
 export default function ChatHeader({
   contactName,
   statusText,
+  isOnline = false,
   onOpenSettings,
   onBack,
 }: Props) {
@@ -32,7 +34,9 @@ export default function ChatHeader({
 
         <div className="w-10 h-10 rounded-full bg-[#111b21] flex items-center justify-center text-lg shadow-inner relative border border-[#222e35]/30 shrink-0">
           🤖
-          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#202c33] rounded-full"></span>
+          {isOnline && (
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#202c33] rounded-full"></span>
+          )}
         </div>
 
         <div>

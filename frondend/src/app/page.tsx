@@ -84,6 +84,60 @@ export default function Home() {
 
   // Layout UI states
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isBackendOnline, setIsBackendOnline] = useState<boolean>(false);
+
+  // Backend Health Check
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkHealth = async () => {
+      if (config.mode === "demo") {
+        if (isMounted) setIsBackendOnline(true);
+        return;
+      }
+
+      try {
+        let baseUrl = config.apiUrl;
+        try {
+          const parsed = new URL(config.apiUrl);
+          baseUrl = `${parsed.protocol}//${parsed.host}`;
+        } catch (e) {
+          baseUrl = config.apiUrl.replace(/\/chat\/?$/, "");
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        let res = await fetch(`${baseUrl}/health`, {
+          method: "GET",
+          signal: controller.signal,
+        }).catch(async () => {
+          return await fetch(baseUrl, {
+            method: "GET",
+            signal: controller.signal,
+          });
+        });
+
+        clearTimeout(timeoutId);
+
+        if (isMounted) {
+          setIsBackendOnline(res.ok);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setIsBackendOnline(false);
+        }
+      }
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [config.apiUrl, config.mode]);
 
   // Initialize single chat session
   useEffect(() => {
@@ -310,10 +364,10 @@ export default function Home() {
   );
 
   return (
-    <main className="h-screen bg-[#0b141a] flex items-center justify-center p-0 select-none overflow-hidden text-[#e9edef]">
+    <main className="h-screen h-[100dvh] bg-[#0b141a] flex items-center justify-center p-0 select-none overflow-hidden text-[#e9edef] w-full">
       
       {/* Container - WhatsApp Split Window Layout */}
-      <div className="flex h-full w-full overflow-hidden bg-[#111b21] shadow-2xl relative">
+      <div className="flex h-full w-full max-h-[100dvh] overflow-hidden bg-[#111b21] shadow-2xl relative">
         
         {/* Leftmost Vertical Navigation Rail */}
         {!isMobile && (
@@ -507,12 +561,13 @@ export default function Home() {
 
         {/* Right Side: Active Chat Stream */}
         {(!isMobile || mobileView === "chat") && (
-          <div className="flex-1 flex flex-col h-full min-w-0 bg-[#0b141a]">
+          <div className="flex-1 flex flex-col h-full min-w-0 min-h-0 bg-[#0b141a] relative overflow-hidden">
             {activeChat ? (
               <>
                 <ChatHeader
                   contactName={activeChat.contactName}
-                  statusText="online"
+                  statusText={isBackendOnline ? "online" : "offline"}
+                  isOnline={isBackendOnline}
                   onOpenSettings={() => setIsSettingsOpen(true)}
                   onBack={isMobile ? () => setMobileView("list") : undefined}
                 />
