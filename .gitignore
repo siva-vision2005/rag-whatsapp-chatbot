@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.next/
+.env
+.env.*
+*.log
+service-account.json
+auth_info_baileys/
