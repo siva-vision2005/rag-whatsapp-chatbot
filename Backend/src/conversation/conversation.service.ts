@@ -34,6 +34,11 @@ function isNonLaptopQuery(message: string, entities: any = {}): boolean {
   return hasKeyword || hasNonLaptopCategory;
 }
 
+function isProductQuery(message: string): boolean {
+  const msg = message.toLowerCase();
+  return /\b(laptop|laptops|computer|budget|price|under|below|above|gaming|code|coding|college|work|school|ram|storage|ssd|hdd|intel|amd|ryzen|core|rtx|gtx|gpu|processor|dell|hp|acer|lenovo|asus|msi|apple|macbook|buy|show|find|recommend|best|options|choices|based on|this price|my budget)\b/i.test(msg);
+}
+
 export async function handleConversation(
   userId: string,
   message: string
@@ -113,12 +118,38 @@ export async function handleConversation(
 
   switch (conversationResult.intent) {
 
-    case "general_knowledge":
-      result = {
-        type: "text",
-        message: await handleGeneralKnowledge(message, getCatalogMetadata())
-      };
+    case "general_knowledge": {
+      // Fail-safe: If the query is actually asking for laptops/products, force product discovery search
+      if (isProductQuery(message)) {
+        console.log("Rerouting misclassified general_knowledge query to product_discovery search.");
+        const searchResult = await handleProductSearch(
+          message,
+          currentState,
+          conversationResult.plan || { entities: {} }
+        );
+        const topProduct = searchResult.products && searchResult.products.length > 0 ? searchResult.products[0] : undefined;
+
+        if (searchResult.products && searchResult.products.length > 0) {
+          updateLastProducts(userId, searchResult.products);
+        }
+        if (conversationResult.entities && Object.keys(conversationResult.entities).length > 0) {
+          updateConversationState(userId, conversationResult.entities);
+        }
+
+        result = {
+          type: "products",
+          message: searchResult.reply,
+          products: searchResult.products ? searchResult.products.map(p => ({ payload: p })) : [],
+          bestProduct: topProduct
+        };
+      } else {
+        result = {
+          type: "text",
+          message: await handleGeneralKnowledge(message, getCatalogMetadata())
+        };
+      }
       break;
+    }
 
     case "product_comparison": {
       const currentConversation = getConversationState(userId);
@@ -231,10 +262,34 @@ export async function handleConversation(
     }
 
     default: {
-      result = {
-        type: "text",
-        message: await handleGeneralKnowledge(message)
-      };
+      if (isProductQuery(message)) {
+        console.log("Rerouting default/unknown query to product_discovery search.");
+        const searchResult = await handleProductSearch(
+          message,
+          currentState,
+          conversationResult.plan || { entities: {} }
+        );
+        const topProduct = searchResult.products && searchResult.products.length > 0 ? searchResult.products[0] : undefined;
+
+        if (searchResult.products && searchResult.products.length > 0) {
+          updateLastProducts(userId, searchResult.products);
+        }
+        if (conversationResult.entities && Object.keys(conversationResult.entities).length > 0) {
+          updateConversationState(userId, conversationResult.entities);
+        }
+
+        result = {
+          type: "products",
+          message: searchResult.reply,
+          products: searchResult.products ? searchResult.products.map(p => ({ payload: p })) : [],
+          bestProduct: topProduct
+        };
+      } else {
+        result = {
+          type: "text",
+          message: await handleGeneralKnowledge(message)
+        };
+      }
       break;
     }
   }
