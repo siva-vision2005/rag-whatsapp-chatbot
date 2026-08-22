@@ -36,7 +36,9 @@ function isNonLaptopQuery(message: string, entities: any = {}): boolean {
 
 function isProductQuery(message: string): boolean {
   const msg = message.toLowerCase();
-  return /\b(laptop|laptops|computer|budget|price|under|below|above|gaming|code|coding|college|work|school|ram|storage|ssd|hdd|intel|amd|ryzen|core|rtx|gtx|gpu|processor|dell|hp|acer|lenovo|asus|msi|apple|macbook|buy|show|find|recommend|best|options|choices|based on|this price|my budget)\b/i.test(msg);
+  // Only match explicit requests for laptops/products or price filters
+  return /\b(need a laptop|show laptops|find laptops|recommend a laptop|suggest laptops|laptops under|laptop under|laptops below|laptops above|laptops with|dell laptop|hp laptop|acer laptop|lenovo laptop|asus laptop|msi laptop|apple laptop|macbook|buy laptop|show options|show products|catalogue|catalog)\b/i.test(msg) ||
+         /\b(under|below)\s*₹?\s*\d+/i.test(msg);
 }
 
 export async function handleConversation(
@@ -119,35 +121,11 @@ export async function handleConversation(
   switch (conversationResult.intent) {
 
     case "general_knowledge": {
-      // Fail-safe: If the query is actually asking for laptops/products, force product discovery search
-      if (isProductQuery(message)) {
-        console.log("Rerouting misclassified general_knowledge query to product_discovery search.");
-        const searchResult = await handleProductSearch(
-          message,
-          currentState,
-          conversationResult.plan || { entities: {} }
-        );
-        const topProduct = searchResult.products && searchResult.products.length > 0 ? searchResult.products[0] : undefined;
-
-        if (searchResult.products && searchResult.products.length > 0) {
-          updateLastProducts(userId, searchResult.products);
-        }
-        if (conversationResult.entities && Object.keys(conversationResult.entities).length > 0) {
-          updateConversationState(userId, conversationResult.entities);
-        }
-
-        result = {
-          type: "products",
-          message: searchResult.reply,
-          products: searchResult.products ? searchResult.products.map(p => ({ payload: p })) : [],
-          bestProduct: topProduct
-        };
-      } else {
-        result = {
-          type: "text",
-          message: await handleGeneralKnowledge(message, getCatalogMetadata())
-        };
-      }
+      // Respect general knowledge intent for conceptual/educational queries
+      result = {
+        type: "text",
+        message: await handleGeneralKnowledge(message, getCatalogMetadata())
+      };
       break;
     }
 
