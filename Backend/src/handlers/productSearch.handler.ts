@@ -203,11 +203,28 @@ console.log("========================================");
     filteredProducts = filterProducts(retrievedProducts, relaxedFilters);
 
     if (filteredProducts.length === 0) {
-      filteredProducts = retrievedProducts;
+      if (safeFilters.brand) {
+        // Restrict fallback recommendations to the requested brand only
+        const requestedBrand = String(safeFilters.brand).toLowerCase();
+        filteredProducts = retrievedProducts.filter(p => {
+          const b = String(p.payload.Brand || p.payload.brand || "").toLowerCase();
+          return b.includes(requestedBrand);
+        });
+        
+        // If we don't even have that brand, fall back to everything
+        if (filteredProducts.length === 0) {
+          filteredProducts = retrievedProducts;
+        }
+      } else {
+        filteredProducts = retrievedProducts;
+      }
     }
 
     if (!fallbackHeader) {
-      if (safeFilters.gpu) {
+      if (safeFilters.brand && filteredProducts.length > 0 && filteredProducts[0].payload) {
+        const b = String(filteredProducts[0].payload.Brand || filteredProducts[0].payload.brand || safeFilters.brand);
+        fallbackHeader = `💡 *Note:* We couldn't find the exact model you requested, but here are the top recommended *${b}* laptops available in our store:\n\n`;
+      } else if (safeFilters.gpu) {
         fallbackHeader = `💡 *Note:* We don't currently have laptops with *${safeFilters.gpu}* graphics in stock, but here are the top graphics laptops available in our store:\n\n`;
       } else if (safeFilters.maxbudget || safeFilters.budget) {
         fallbackHeader = `💡 *Note:* We couldn't find laptops strictly under ₹${Number(budgetVal).toLocaleString('en-IN')}, but here are the closest recommended options available:\n\n`;

@@ -18,7 +18,11 @@ function isNonLaptopQuery(message: string, entities: any = {}): boolean {
     "iphone", "samsung galaxy", "galaxy s2", "galaxy s3", "galaxy s4", "galaxy note",
     "smartphone", "smartphones", "mobile phone", "mobile phones", "cellphone", "cellphones",
     "smart tv", "television", "smarttv", "refrigerator", "fridge", "washing machine",
-    "tablet", "ipad", "android tablet"
+    "tablet", "ipad", "android tablet",
+    // PC Components
+    "ssd", "hdd", "hard drive", "solid state drive", "nvme", "sata",
+    "ram", "memory stick", "ddr4", "ddr5",
+    "motherboard", "processor", "cpu", "intel core alone", "graphics card", "gpu alone"
   ];
   
   // Check if any keyword matches
@@ -26,7 +30,10 @@ function isNonLaptopQuery(message: string, entities: any = {}): boolean {
   
   // Check extracted category
   const category = String(entities?.category ?? "").toLowerCase().trim();
-  const nonLaptopCategories = ["phone", "smartphone", "tv", "television", "mobile", "fridge", "appliance", "tablet"];
+  const nonLaptopCategories = [
+    "phone", "smartphone", "tv", "television", "mobile", "fridge", "appliance", "tablet", 
+    "ssd", "hdd", "ram", "processor", "component", "hardware"
+  ];
   const hasNonLaptopCategory = nonLaptopCategories.some(cat => category.includes(cat));
 
   return hasKeyword || hasNonLaptopCategory;
