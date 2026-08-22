@@ -9,6 +9,7 @@ import { handleRecommendation } from "../handlers/recommendation.handler";
 import { handleProductInformation } from "../services/handleProductInformation";
 import { ChatResponse } from "../types/chatResponse";
 import { getCatalogMetadata } from "../catalog/catalog.service";
+import { generateResponse } from "../ai/generateResponse";
 
 function isNonLaptopQuery(message: string, entities: any = {}): boolean {
   const msg = message.toLowerCase().trim();
@@ -214,6 +215,21 @@ export async function handleConversation(
     }
 
     case "product_discovery": {
+      const currentConversation = getConversationState(userId);
+      const isMemoryReference = conversationResult.plan?.useMemory || 
+        /\b(above|these|those|this|that|which of|among|these laptops|above laptops|that model|those products)\b/i.test(message);
+
+      if (isMemoryReference && currentConversation.lastProducts && currentConversation.lastProducts.length > 0) {
+        console.log("Answering user query based on products in memory:", currentConversation.lastProducts.length);
+        const reply = await generateResponse(message, currentConversation.lastProducts);
+        result = {
+          type: "products",
+          message: reply,
+          products: currentConversation.lastProducts.map(p => ({ payload: p }))
+        };
+        break;
+      }
+
       const searchResult = await handleProductSearch(
         message,
         currentState,
