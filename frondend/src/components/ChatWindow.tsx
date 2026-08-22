@@ -8,6 +8,29 @@ interface Props {
   isTyping: boolean;
   activeInspectMetadata: RAGMetadata | null;
   onInspectMessage: (metadata: RAGMetadata) => void;
+  onDeleteMessage?: (id: string) => void;
+  searchQuery?: string;
+}
+
+// Helper to format date groups (e.g. "Today", "Yesterday", "24 August 2026")
+function getDateGroup(dateObj: Date | string): string {
+  const d = typeof dateObj === "string" ? new Date(dateObj) : dateObj;
+  
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) {
+    return "Today";
+  } else if (d.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  } else {
+    return d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+  }
 }
 
 export default function ChatWindow({
@@ -15,6 +38,8 @@ export default function ChatWindow({
   isTyping,
   activeInspectMetadata,
   onInspectMessage,
+  onDeleteMessage,
+  searchQuery = ""
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -24,6 +49,25 @@ export default function ChatWindow({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isTyping]);
+
+  // Filter messages based on search query
+  const filteredMessages = messages.filter((m) => 
+    searchQuery === "" || m.content.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Group messages by date
+  const groupedMessages: { date: string; messages: Message[] }[] = [];
+  
+  filteredMessages.forEach((msg) => {
+    const groupName = getDateGroup(msg.timestamp);
+    const lastGroup = groupedMessages[groupedMessages.length - 1];
+    
+    if (lastGroup && lastGroup.date === groupName) {
+      lastGroup.messages.push(msg);
+    } else {
+      groupedMessages.push({ date: groupName, messages: [msg] });
+    }
+  });
 
   return (
     <div 
@@ -41,29 +85,41 @@ export default function ChatWindow({
             <h3 className="font-semibold text-gray-200 mt-2">Welcome to AI Product Assistant!</h3>
             <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
               Ask any product specs, search, or comparisons. 
-              Click the gear icon in the settings bar to switch between Live and offline Demo modes.
             </p>
           </div>
         ) : (
-          messages.map((message) => {
-            const isInspected = 
-              !!message.ragMetadata && 
-              activeInspectMetadata?.query === message.ragMetadata.query &&
-              activeInspectMetadata?.latencyMs === message.ragMetadata.latencyMs;
+          groupedMessages.map((group) => (
+            <div key={group.date} className="flex flex-col w-full">
+              {/* Date Badge Separator */}
+              <div className="flex justify-center my-3 sticky top-2 z-10">
+                <span className="bg-[#182229]/90 backdrop-blur-sm text-[#8696a0] text-[11px] font-medium px-3 py-1.5 rounded-lg shadow-sm border border-[#222e35]/50 select-none">
+                  {group.date}
+                </span>
+              </div>
+              
+              {/* Messages in this date group */}
+              {group.messages.map((message) => {
+                const isInspected = 
+                  !!message.ragMetadata && 
+                  activeInspectMetadata?.query === message.ragMetadata.query &&
+                  activeInspectMetadata?.latencyMs === message.ragMetadata.latencyMs;
 
-            return (
-              <ChatMessage
-                key={message.id}
-                message={message}
-                onInspect={onInspectMessage}
-                isInspected={isInspected}
-              />
-            );
-          })
+                return (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    onInspect={onInspectMessage}
+                    isInspected={isInspected}
+                    onDelete={onDeleteMessage}
+                  />
+                );
+              })}
+            </div>
+          ))
         )}
 
         {isTyping && <TypingIndicator />}
       </div>
     </div>
   );
-}
+}

@@ -1,24 +1,42 @@
 "use client";
 
-import { MoreVertical, Settings2, ArrowLeft } from "lucide-react";
+import { MoreVertical, ArrowLeft, Search } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 
 interface Props {
   contactName: string;
   statusText: string;
   isOnline?: boolean;
-  onOpenSettings: () => void;
   onBack?: () => void;
+  onToggleSearch?: () => void;
+  onClearChat?: () => void;
+  onExportChat?: () => void;
 }
 
 export default function ChatHeader({
   contactName,
   statusText,
   isOnline = false,
-  onOpenSettings,
   onBack,
+  onToggleSearch,
+  onClearChat,
+  onExportChat,
 }: Props) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
-    <div className="bg-[#202c33] text-[#e9edef] h-16 flex items-center justify-between px-4 border-b border-[#222e35] select-none shrink-0">
+    <div className="bg-[#202c33] text-[#e9edef] h-16 flex items-center justify-between px-4 border-b border-[#222e35] select-none shrink-0 relative">
       
       {/* Contact Profile Info */}
       <div className="flex items-center gap-2">
@@ -51,24 +69,51 @@ export default function ChatHeader({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2.5 text-[#aebac1]">
-        <button
-          onClick={onOpenSettings}
-          title="Connection & App Settings"
-          className="p-2 hover:bg-[#2a3942] rounded-full transition-all cursor-pointer hover:text-white"
-        >
-          <Settings2 size={19} />
-        </button>
-        <button
-          title="More options"
-          className="p-2 hover:bg-[#2a3942] rounded-full transition-all cursor-pointer hover:text-white"
-        >
-          <MoreVertical size={19} />
-        </button>
+        {onToggleSearch && (
+          <button
+            onClick={onToggleSearch}
+            title="Search Chat"
+            className="p-2 hover:bg-[#2a3942] rounded-full transition-all cursor-pointer hover:text-white"
+          >
+            <Search size={19} />
+          </button>
+        )}
+
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            title="Menu"
+            className={`p-2 rounded-full transition-all cursor-pointer hover:text-white ${isMenuOpen ? "bg-[#2a3942] text-white" : "hover:bg-[#2a3942]"}`}
+          >
+            <MoreVertical size={19} />
+          </button>
+
+          {/* Dropdown Menu */}
+          {isMenuOpen && (
+            <div className="absolute right-0 top-12 w-48 bg-[#233138] rounded shadow-lg py-2 z-50 text-[14.5px] text-[#e9edef]">
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  if (onClearChat) onClearChat();
+                }}
+                className="w-full text-left px-5 py-3 hover:bg-[#182229] transition-colors cursor-pointer"
+              >
+                Clear chat
+              </button>
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  if (onExportChat) onExportChat();
+                }}
+                className="w-full text-left px-5 py-3 hover:bg-[#182229] transition-colors cursor-pointer"
+              >
+                Export chat
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
     </div>
   );
 }
-
-
-

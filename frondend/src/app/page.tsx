@@ -4,19 +4,18 @@ import { useState, useEffect } from "react";
 import ChatHeader from "../components/ChatHeader";
 import ChatInput from "../components/ChatInput";
 import ChatWindow from "../components/ChatWindow";
-import SettingsModal from "../components/SettingsModal";
 import { ChatMessage, RAGMetadata } from "../types/message";
 import { getMockRAGResponse } from "../utils/mockData";
 import { 
   Search, 
-  Settings, 
   MessageSquarePlus, 
   MessageSquare, 
   Phone, 
   CircleDot, 
   Sparkles, 
   Star,
-  Users
+  Users,
+  X
 } from "lucide-react";
 
 interface SettingsConfig {
@@ -52,29 +51,9 @@ export default function Home() {
   // App Config Settings
   const [config, setConfig] = useState<SettingsConfig>({
     mode: "live",
-    apiUrl: "http://localhost:3000/chat",
+    apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/chat",
     headers: "{}",
   });
-
-  // Load configuration and chat history from localstorage on mount
-  useEffect(() => {
-    const savedConfig = localStorage.getItem("rag_chat_config");
-    if (savedConfig) {
-      try { setConfig(JSON.parse(savedConfig)); } catch (e) {}
-    } else {
-      const defaultUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/chat";
-      setConfig({
-        mode: "live",
-        apiUrl: defaultUrl,
-        headers: "{}",
-      });
-    }
-  }, []);
-
-  const saveConfig = (newConfig: SettingsConfig) => {
-    setConfig(newConfig);
-    localStorage.setItem("rag_chat_config", JSON.stringify(newConfig));
-  };
 
   // Contacts/Chats state - ONLY keeping AI Product Assistant
   const [chats, setChats] = useState<ChatSession[]>([]);
@@ -82,8 +61,10 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
-  // Layout UI states
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // Chat search state
+  const [isChatSearchActive, setIsChatSearchActive] = useState(false);
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
+
   const [isBackendOnline, setIsBackendOnline] = useState<boolean>(false);
 
   // Backend Health Check
@@ -153,13 +134,12 @@ export default function Home() {
             id: "init-1",
             sender: "assistant",
             content: "Hello! I am your AI Product Assistant. I am connected to our product catalog. Ask me things like:\n- 'Suggest laptops for gaming under 80000'\n- 'Which laptop has the best battery life?'",
-            timestamp: new Date(Date.now() - 1000 * 60 * 15),
+            timestamp: new Date(),
           }
         ]
       }
     ];
 
-    // Using v4 history key to force clearing of older multi-contact history lists
     const savedChats = localStorage.getItem("rag_chat_history_v4");
     if (savedChats) {
       try {
@@ -241,20 +221,12 @@ export default function Home() {
       setIsTyping(false);
       saveChatsToStorage(finalChats);
 
-
     } else {
       // --- LIVE BACKEND MODE ---
       try {
-        let headersObj = { "Content-Type": "application/json" };
-        if (config.headers.trim()) {
-          try {
-            headersObj = { ...headersObj, ...JSON.parse(config.headers) };
-          } catch (e) {}
-        }
-
         const res = await fetch(config.apiUrl, {
           method: "POST",
-          headers: headersObj,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: text,
             chatId: activeChat.id,
@@ -270,12 +242,7 @@ export default function Home() {
 
         const messageContent = data.message || data.response || data.content || JSON.stringify(data);
         
-        const retrievedDocs = data.ragMetadata?.retrievedChunks || 
-                             data.retrievedChunks || 
-                             data.retrieved_documents || 
-                             data.chunks || 
-                             data.docs || [];
-                             
+        const retrievedDocs = data.ragMetadata?.retrievedChunks || [];
         const mappedChunks = retrievedDocs.map((doc: any, i: number) => ({
           content: doc.content || doc.text || doc.page_content || JSON.stringify(doc),
           source: doc.source || doc.metadata?.source || doc.file || "unknown source",
@@ -285,10 +252,10 @@ export default function Home() {
 
         const rMetadata: RAGMetadata = {
           query: data.ragMetadata?.query || text,
-          tokensUsed: data.ragMetadata?.tokensUsed || data.tokens || data.total_tokens || undefined,
-          latencyMs: data.ragMetadata?.latencyMs || data.latency || data.execution_time_ms || undefined,
-          modelName: data.ragMetadata?.modelName || data.model || undefined,
-          promptTemplate: data.ragMetadata?.promptTemplate || data.prompt || undefined,
+          tokensUsed: data.ragMetadata?.tokensUsed || undefined,
+          latencyMs: data.ragMetadata?.latencyMs || undefined,
+          modelName: data.ragMetadata?.modelName || undefined,
+          promptTemplate: data.ragMetadata?.promptTemplate || undefined,
           retrievedChunks: mappedChunks,
         };
 
@@ -314,8 +281,6 @@ export default function Home() {
           return chat;
         });
         saveChatsToStorage(finalChats);
-        
-
 
       } catch (error: any) {
         console.error(error);
@@ -324,7 +289,7 @@ export default function Home() {
         const errorMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           sender: "assistant",
-          content: `❌ **Failed to reach Live RAG Endpoint**\n\nError: _${error.message || "Unknown error"}_.\n\nMake sure your server is running at \`${config.apiUrl}\` or click the settings icon at the top to toggle **Demo Mode** (offline mock data).`,
+          content: `❌ **Failed to reach Live RAG Endpoint**\n\nError: _${error.message || "Unknown error"}_.\n\nMake sure your server is running.`,
           timestamp: new Date(),
         };
 
@@ -356,7 +321,47 @@ export default function Home() {
       return chat;
     });
     saveChatsToStorage(clearedChats);
+  };
 
+  const deleteMessage = (messageId: string) => {
+    if (!activeChat) return;
+    const updatedChats = chats.map((chat) => {
+      if (chat.id === activeChat.id) {
+        const newMessages = chat.messages.filter(m => m.id !== messageId);
+        return {
+          ...chat,
+          lastMessage: newMessages.length > 0 ? newMessages[newMessages.length - 1].content.substring(0, 50) : "",
+          messages: newMessages,
+        };
+      }
+      return chat;
+    });
+    saveChatsToStorage(updatedChats);
+  };
+
+  const exportChat = () => {
+    if (!activeChat) return;
+    let exportText = `WhatsApp Chat Export - ${activeChat.contactName}\nDate: ${new Date().toLocaleString()}\n\n`;
+    
+    activeChat.messages.forEach(msg => {
+      const time = new Date(msg.timestamp).toLocaleString();
+      const sender = msg.sender === 'user' ? 'You' : activeChat.contactName;
+      exportText += `[${time}] ${sender}: ${msg.content}\n`;
+      if (msg.products) {
+        exportText += `[Attached ${msg.products.length} Products]\n`;
+      }
+      exportText += `\n`;
+    });
+
+    const blob = new Blob([exportText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WhatsApp_Chat_${activeChat.contactName.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const filteredChats = chats.filter((c) =>
@@ -393,13 +398,6 @@ export default function Home() {
               <div className="p-2 hover:bg-[#202c33] rounded-lg cursor-pointer hover:text-white" title="Starred Messages">
                 <Star size={20} />
               </div>
-              <button
-                onClick={() => setIsSettingsOpen(true)}
-                title="Settings"
-                className="p-2 hover:bg-[#202c33] rounded-lg cursor-pointer hover:text-white"
-              >
-                <Settings size={20} />
-              </button>
               <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold shadow cursor-pointer">
                 S
               </div>
@@ -414,16 +412,6 @@ export default function Home() {
             {/* Sidebar Top Header */}
             <div className="bg-[#111b21] h-16 flex items-center justify-between px-4">
               <h1 className="text-xl font-bold tracking-wide">Chats</h1>
-              
-              <div className="flex items-center gap-2 text-[#aebac1]">
-                <button
-                  onClick={() => setIsSettingsOpen(true)}
-                  title="Settings"
-                  className="p-2 hover:bg-[#202c33] rounded-full transition-colors cursor-pointer"
-                >
-                  <Settings size={20} />
-                </button>
-              </div>
             </div>
 
             {/* Chat Search Box & Filter Row */}
@@ -568,15 +556,40 @@ export default function Home() {
                   contactName={activeChat.contactName}
                   statusText={isBackendOnline ? "online" : "offline"}
                   isOnline={isBackendOnline}
-                  onOpenSettings={() => setIsSettingsOpen(true)}
                   onBack={isMobile ? () => setMobileView("list") : undefined}
+                  onToggleSearch={() => setIsChatSearchActive(!isChatSearchActive)}
+                  onClearChat={clearChatHistory}
+                  onExportChat={exportChat}
                 />
+                
+                {/* Active Search Bar in Chat Stream */}
+                {isChatSearchActive && (
+                  <div className="bg-[#202c33] px-4 py-2 border-b border-[#222e35] flex items-center transition-all animate-in slide-in-from-top-2">
+                    <Search size={16} className="text-[#8696a0] mr-3" />
+                    <input 
+                      type="text" 
+                      placeholder="Search messages..." 
+                      value={chatSearchQuery}
+                      onChange={(e) => setChatSearchQuery(e.target.value)}
+                      className="w-full bg-transparent text-[#e9edef] outline-none text-[14px]"
+                      autoFocus
+                    />
+                    <button 
+                      onClick={() => { setIsChatSearchActive(false); setChatSearchQuery(""); }} 
+                      className="text-[#8696a0] hover:text-[#e9edef] ml-3"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                )}
 
                 <ChatWindow
                   messages={activeChat.messages}
                   isTyping={isTyping}
                   activeInspectMetadata={null}
                   onInspectMessage={() => {}}
+                  onDeleteMessage={deleteMessage}
+                  searchQuery={isChatSearchActive ? chatSearchQuery : ""}
                 />
 
                 <ChatInput onSend={sendMessage} />
@@ -593,16 +606,6 @@ export default function Home() {
         )}
 
       </div>
-
-      {/* Settings configuration modal dialog overlay */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        config={config}
-        onSave={saveConfig}
-        onClearChats={clearChatHistory}
-      />
-
     </main>
   );
 }

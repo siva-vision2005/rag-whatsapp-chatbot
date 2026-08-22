@@ -8,6 +8,7 @@ interface Props {
   message: Message;
   onInspect?: (metadata: RAGMetadata) => void;
   isInspected?: boolean;
+  onDelete?: (id: string) => void;
 }
 
 /**
@@ -160,8 +161,23 @@ function formatInlineMarkdown(text: string): React.ReactNode {
   return <>{parts}</>;
 }
 
-export default function ChatMessage({ message, onInspect, isInspected }: Props) {
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown } from "lucide-react";
+
+export default function ChatMessage({ message, onInspect, isInspected, onDelete }: Props) {
   const isUser = message.sender === "user";
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Format timestamp (e.g. 10:45 AM)
   const formatTime = (dateObj: Date | string) => {
@@ -178,7 +194,7 @@ export default function ChatMessage({ message, onInspect, isInspected }: Props) 
   };
 
   return (
-    <div className={`flex w-full mb-3.5 ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex w-full mb-3.5 group ${isUser ? "justify-end" : "justify-start"}`}>
       <div
         className={`relative ${
           message.type === "products" || (message.products && message.products.length > 0)
@@ -218,6 +234,35 @@ export default function ChatMessage({ message, onInspect, isInspected }: Props) 
             </span>
           )}
         </div>
+
+        {/* Hover Delete Dropdown */}
+        {onDelete && (
+          <div className="absolute top-1 right-2 opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMenuOpen(!isMenuOpen);
+              }}
+              className="text-[#8696a0] hover:text-white bg-gradient-to-l from-[#202c33] to-transparent pl-4"
+            >
+              <ChevronDown size={20} />
+            </button>
+
+            {isMenuOpen && (
+              <div className="absolute right-0 top-6 w-36 bg-[#233138] rounded shadow-xl py-2 z-50 text-[14.5px] text-[#e9edef] border border-[#222e35]">
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onDelete(message.id);
+                  }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-[#182229] transition-colors cursor-pointer text-red-400 hover:text-red-300"
+                >
+                  Delete message
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </div>
