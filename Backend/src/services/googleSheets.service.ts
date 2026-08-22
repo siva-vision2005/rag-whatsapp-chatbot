@@ -1,4 +1,6 @@
 import { google } from "googleapis";
+import path from "path";
+import fs from "fs";
 import "dotenv/config";
 const SHEET_ID = process.env.GOOGLE_SHEET_ID!;
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME!;
@@ -18,8 +20,9 @@ if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     throw err;
   }
 } else {
+  const keyPath = path.resolve(__dirname, "../config/service-account.json");
   auth = new google.auth.GoogleAuth({
-    keyFile: "./src/config/service-account.json",
+    keyFile: fs.existsSync(keyPath) ? keyPath : path.resolve(process.cwd(), "src/config/service-account.json"),
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
   console.log("🔓 Google Sheets Auth initialized using keyFile.");

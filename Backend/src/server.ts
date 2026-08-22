@@ -13,11 +13,16 @@ async function startServer() {
     await initializeCatalog();
 
     app.listen(PORT, () => {
-      console.log("🚀 RAG WhatsApp Chatbot Started");
+      console.log("🚀 RAG Chatbot Server Started");
       console.log(`🌐 Server: http://localhost:${PORT}`);
     });
 
-    await connectWhatsApp();
+    if (process.env.ENABLE_WHATSAPP === "true") {
+      console.log("📱 Connecting to WhatsApp...");
+      await connectWhatsApp();
+    } else {
+      console.log("📱 WhatsApp integration disabled (set ENABLE_WHATSAPP=true to enable).");
+    }
 
   } catch (error) {
     console.error("Failed to start server.");
