@@ -3,7 +3,8 @@ import { getProducts } from "./googleSheets.service";
 
 export async function resolveComparisonProducts(
   entities: Record<string, any>,
-  lastProducts: Record<string, any>[] = []
+  lastProducts: Record<string, any>[] = [],
+  state?: Record<string, any>
 ): Promise<Record<string, any>[]> {
 
   const references =
@@ -11,8 +12,20 @@ export async function resolveComparisonProducts(
     entities.comparison_products ??
     [];
 
-  // Detect "compare all / above / these / five / laptops / them" — return ALL products in memory
   const rawMsg = String(entities.rawMessage ?? "").toLowerCase();
+
+  // Special check: "Compare it with the one I preferred"
+  if (rawMsg.includes("preferred") || rawMsg.includes("favourite")) {
+    const item1 = await resolveProduct("it", lastProducts, state);
+    const item2 = await resolveProduct("preferred", lastProducts, state);
+
+    if (item1 && item2 && (item1["Product_ID"] ?? item1["Product Name"]) !== (item2["Product_ID"] ?? item2["Product Name"])) {
+      console.log(`Resolved comparison between current item (${item1["Product Name"]}) and preferred item (${item2["Product Name"]}).`);
+      return [item1, item2];
+    }
+  }
+
+  // Detect "compare all / above / these / five / laptops / them" — return ALL products in memory
   const isCompareAll = /\b(all|above|these|each|everything|entire|every|them|laptop|laptops|product|products|options|choices|5|five|4|four|3|three|2|two)\b/i.test(rawMsg);
 
   if ((isCompareAll || !references || references.length === 0) && lastProducts && lastProducts.length >= 2) {
@@ -21,14 +34,11 @@ export async function resolveComparisonProducts(
   }
 
   if (Array.isArray(references) && references.length > 0 && !isCompareAll) {
-
     console.log("Comparison References:", references);
 
     const products = await Promise.all(
       references.map(async (reference: any) => {
-        const product = await resolveProduct(reference, lastProducts);
-        console.log("Searching:", reference);
-        console.log("Found:", product?.["Product Name"] ?? product?.name ?? null);
+        const product = await resolveProduct(reference, lastProducts, state);
         return product;
       })
     );
@@ -53,9 +63,8 @@ export async function resolveComparisonProducts(
     }
   }
 
-  // Fallback 1: Return ALL products in memory (no cap)
+  // Fallback 1: Return ALL products in memory
   if (lastProducts && lastProducts.length >= 2) {
-    console.log(`No specific products resolved. Falling back to ALL ${lastProducts.length} products in memory.`);
     return lastProducts;
   }
 
@@ -67,7 +76,5 @@ export async function resolveComparisonProducts(
     if (alt) return [p1, alt];
   }
 
-  // If there are no products in memory to compare, return an empty array (the caller will request specific products)
-  console.log("No products in memory to compare.");
   return [];
 }

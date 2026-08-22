@@ -1,5 +1,5 @@
 import { conversationManager, ConversationManagerResult } from "../ai/conversationManager";
-import { getConversationState, clearConversationState, updateConversationState, updateLastProducts } from "./conversationState";
+import { getConversationState, clearConversationState, updateConversationState, updateLastProducts, setSelectedProduct, setPreferredProduct } from "./conversationState";
 import { getConversation, clearConversation, addMessage } from "../memory/conversationMemory";
 import { knowledgeIndexer } from "../knowledge/knowledgeIndexer";
 import { handleGeneralKnowledge } from "../handlers/generalKnowledge.handler";
@@ -8,6 +8,7 @@ import { handleProductComparison } from "../handlers/productComparison.handler";
 import { handleRecommendation } from "../handlers/recommendation.handler";
 import { handleProductAction } from "../handlers/productAction.handler";
 import { handleProductInformation } from "../services/handleProductInformation";
+import { resolveProduct } from "../services/productResolver";
 import { ChatResponse } from "../types/chatResponse";
 import { getCatalogMetadata } from "../catalog/catalog.service";
 import { generateResponse } from "../ai/generateResponse";
@@ -15,7 +16,6 @@ import { generateResponse } from "../ai/generateResponse";
 function isNonLaptopQuery(message: string, entities: any = {}): boolean {
   const msg = message.toLowerCase().trim();
   
-  // Non-laptop standalone product categories (NOT components)
   const nonLaptopKeywords = [
     "iphone", "samsung galaxy", "galaxy s2", "galaxy s3", "galaxy s4", "galaxy note",
     "smartphone", "smartphones", "mobile phone", "mobile phones", "cellphone", "cellphones",
@@ -23,10 +23,8 @@ function isNonLaptopQuery(message: string, entities: any = {}): boolean {
     "tablet", "ipad", "android tablet"
   ];
   
-  // Check if any standalone non-laptop product keyword matches
   const hasKeyword = nonLaptopKeywords.some(kw => msg.includes(kw));
   
-  // Check extracted category (standalone non-laptop categories only)
   const category = String(entities?.category ?? "").toLowerCase().trim();
   const nonLaptopCategories = [
     "phone", "smartphone", "tv", "television", "mobile", "fridge", "appliance", "tablet"
@@ -38,7 +36,6 @@ function isNonLaptopQuery(message: string, entities: any = {}): boolean {
 
 function isProductQuery(message: string): boolean {
   const msg = message.toLowerCase();
-  // Only match explicit requests for laptops/products or price filters
   return /\b(need a laptop|show laptops|find laptops|recommend a laptop|suggest laptops|laptops under|laptop under|laptops below|laptops above|laptops with|dell laptop|hp laptop|acer laptop|lenovo laptop|asus laptop|msi laptop|apple laptop|macbook|buy laptop|show options|show products|catalogue|catalog)\b/i.test(msg) ||
          /\b(under|below)\s*₹?\s*\d+/i.test(msg);
 }
@@ -48,12 +45,7 @@ export async function handleConversation(
   message: string
 ): Promise<ChatResponse> {
 
-  // Save user's message to conversation history memory
   addMessage(userId, `User: ${message}`);
-
-  // ---------------------------------------
-  // Knowledge Base & FAQ Check
-  // ---------------------------------------
 
   const knowledge = knowledgeIndexer(message);
 
@@ -75,18 +67,36 @@ export async function handleConversation(
     }
   }
 
-  // ---------------------------------------
-  // Conversation Manager
-  // ---------------------------------------
-
   const conversationHistory = getConversation(userId);
-  const currentConversation = getConversationState(userId);
+  let currentConversation = getConversationState(userId);
   const currentState = currentConversation.fields;
 
-  // Pass rich context to conversationManager/planner (specifically including lastProducts, intent, and status)
+  // Track explicit user preference e.g. "I prefer the second one"
+  const lowerMsg = message.toLowerCase();
+  const preferMatch = lowerMsg.match(/\b(prefer|liked|like|want|choose|select|pick)\b.*?\b(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|#?1|#?2|#?3|#?4|#?5)\b/i) ||
+                    lowerMsg.match(/\b(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|#?1|#?2|#?3|#?4|#?5)\b.*?\b(one|laptop|product)?\b.*?\b(prefer|liked|choice|selected)\b/i);
+
+  if (preferMatch && currentConversation.lastProducts.length > 0) {
+    const chosenProduct = await resolveProduct(message, currentConversation.lastProducts, currentConversation);
+    if (chosenProduct) {
+      setPreferredProduct(userId, chosenProduct);
+      currentConversation = getConversationState(userId);
+      console.log("Updated preferredProduct in state:", chosenProduct["Product Name"] ?? chosenProduct.name);
+    }
+  } else if (currentConversation.lastProducts.length > 0) {
+    const selectedProduct = await resolveProduct(message, currentConversation.lastProducts, currentConversation);
+    if (selectedProduct && selectedProduct !== currentConversation.selectedProduct) {
+      setSelectedProduct(userId, selectedProduct);
+      currentConversation = getConversationState(userId);
+      console.log("Updated selectedProduct in state:", selectedProduct["Product Name"] ?? selectedProduct.name);
+    }
+  }
+
   const richState = {
     ...currentState,
     lastProducts: currentConversation.lastProducts,
+    selectedProduct: currentConversation.selectedProduct,
+    preferredProduct: currentConversation.preferredProduct,
     intent: currentConversation.mode,
     status: currentConversation.status
   };
@@ -100,11 +110,9 @@ export async function handleConversation(
 
   console.log("\n========== AI INTENT ==========");
   console.log("Intent:", conversationResult.intent);
-  console.log("Entities:");
-  console.log(conversationResult.entities);
+  console.log("Entities:", conversationResult.entities);
   console.log("===============================\n");
 
-  // Check if the query refers to smartphones/non-laptop products and gracefully reject
   if (isNonLaptopQuery(message, conversationResult.entities)) {
     const rejectResponse: ChatResponse = {
       type: "text",
@@ -114,16 +122,11 @@ export async function handleConversation(
     return rejectResponse;
   }
 
-  // ---------------------------------------
-  // Intent Routing
-  // ---------------------------------------
-
   let result: ChatResponse;
 
   switch (conversationResult.intent) {
 
     case "general_knowledge": {
-      // Respect general knowledge intent for conceptual/educational queries
       result = {
         type: "text",
         message: await handleGeneralKnowledge(message, getCatalogMetadata())
@@ -132,38 +135,17 @@ export async function handleConversation(
     }
 
     case "product_comparison": {
-      const currentConversation = getConversationState(userId);
-      console.log("\n========== COMPARISON ==========");
-      console.log(
-        "Products in memory:",
-        currentConversation.lastProducts.length
-      );
-      console.log(
-        currentConversation.lastProducts.map(
-          (p) => p["Product Name"] ?? p.name ?? p.title
-        )
-      );
-      console.log("================================\n");
-
       result = await handleProductComparison(
         conversationResult.entities,
         currentConversation.lastProducts,
-        message
+        message,
+        currentConversation
       );
       break;
     }
 
     case "recommendation": {
-      const currentConversation = getConversationState(userId);
-      console.log("\n========== RECOMMENDATION ==========");
-      console.log(
-        "Products in memory:",
-        currentConversation.lastProducts.length
-      );
-      console.log("===================================\n");
-
       if (!currentConversation.lastProducts || currentConversation.lastProducts.length === 0) {
-        console.log("Empty memory during recommendation intent. Falling back to product search.");
         const searchResult = await handleProductSearch(
           message,
           currentState,
@@ -171,7 +153,6 @@ export async function handleConversation(
         );
         const topProduct = searchResult.products && searchResult.products.length > 0 ? searchResult.products[0] : undefined;
         
-        // Save search results & entities to session state
         if (searchResult.products && searchResult.products.length > 0) {
           updateLastProducts(userId, searchResult.products);
         }
@@ -198,7 +179,6 @@ export async function handleConversation(
     }
 
     case "product_action": {
-      const currentConversation = getConversationState(userId);
       const action = conversationResult.entities?.action || conversationResult.plan?.action || "image";
       result = await handleProductAction(
         String(action),
@@ -215,8 +195,6 @@ export async function handleConversation(
         conversationResult.entities.productName ??
         message;
 
-      const currentConversation = getConversationState(userId);
-
       result = await handleProductInformation(
         String(reference),
         currentConversation.lastProducts
@@ -225,7 +203,6 @@ export async function handleConversation(
     }
 
     case "product_discovery": {
-      const currentConversation = getConversationState(userId);
       const isMemoryReference = conversationResult.plan?.useMemory || 
         /\b(above|these|those|this|that|which of|among|these laptops|above laptops|that model|those products)\b/i.test(message);
 
@@ -248,7 +225,6 @@ export async function handleConversation(
 
       const topProduct = searchResult.products && searchResult.products.length > 0 ? searchResult.products[0] : undefined;
 
-      // Save search results & entities to session state
       if (searchResult.products && searchResult.products.length > 0) {
         updateLastProducts(userId, searchResult.products);
       }
@@ -267,7 +243,6 @@ export async function handleConversation(
 
     default: {
       if (isProductQuery(message)) {
-        console.log("Rerouting default/unknown query to product_discovery search.");
         const searchResult = await handleProductSearch(
           message,
           currentState,
@@ -298,7 +273,6 @@ export async function handleConversation(
     }
   }
 
-  // Save bot's reply message to conversation history memory
   if (result && result.message) {
     addMessage(userId, `Bot: ${result.message}`);
   }

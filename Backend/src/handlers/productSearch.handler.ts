@@ -6,6 +6,7 @@ import { searchProducts } from "../search/searchProducts";
 import { getProducts } from "../services/googleSheets.service";
 import { aiService } from "../services/ai.service";
 import { buildGenerateResponsePrompt } from "../prompts/generateResponse.prompt";
+import { PlannerPlan } from "../ai/planner/planner.types";
 
 export interface ProductSearchResult {
   reply: string;
@@ -30,255 +31,73 @@ const NON_FILTER_FIELDS = new Set([
   "quantity"
 ]);
 
-import { PlannerPlan } from "../ai/planner/planner.types"; // or wherever your PlannerPlan is defined
-
 export async function handleProductSearch(
   customerMessage: string,
   conversationState: Record<string, any>,
   plan: PlannerPlan
 ): Promise<ProductSearchResult> {
 
-
   //----------------------------------------
   // Build Semantic Search Query
   //----------------------------------------
-
-  const searchQuery = buildSearchQuery(
-    customerMessage,
-    plan.entities
-);
+  const searchQuery = buildSearchQuery(customerMessage, plan.entities);
   console.log("\n========== PRODUCT SEARCH ==========");
-  console.log("Search Query:");
-  console.log(searchQuery);
+  console.log("Search Query:", searchQuery);
   console.log("====================================\n");
 
   //----------------------------------------
-  // Semantic Search
+  // Semantic Search from Qdrant
   //----------------------------------------
+  const retrievedProducts = await searchProducts(searchQuery);
 
-  //----------------------------------------
-// Semantic Search
-//----------------------------------------
-
-const retrievedProducts = await searchProducts(
-  searchQuery
-);
-
-// DEBUG: Print first payload
-if (retrievedProducts.length > 0) {
-
-  console.log("\n========== FIRST PAYLOAD ==========");
-
-  const rtxLaptop = retrievedProducts.find(p =>
-    (p.payload.name ?? "").toLowerCase().includes("rtx")
-);
-
-if (rtxLaptop) {
-
-    console.log("\n========== RTX PAYLOAD ==========");
-    console.log(
-        JSON.stringify(rtxLaptop.payload, null, 2)
-    );
-    console.log("================================");
-
-}console.log(
-    JSON.stringify(
-      retrievedProducts[0].payload,
-      null,
-      2
-    )
-  );
-
-  console.log("===================================\n");
-
-}
-
-// Existing code
-console.log("\n========== RETRIEVED PRODUCTS ==========");
-
-retrievedProducts.forEach((p, index) => {
-
-  console.log(
-    index + 1,
-    p.payload.Brand ??
-    p.payload.brand ??
-    p.payload.Manufacturer ??
-    "Unknown",
-    "-",
-    p.payload.name ??
-    p.payload.title
-  );
-
-});
-
-console.log("========================================");
-  console.log("\n========== RETRIEVED PRODUCTS ==========");
-
-retrievedProducts.forEach((p, index) => {
-
-    console.log(
-        index + 1,
-        p.payload.Brand ??
-        p.payload.brand ??
-        p.payload.Manufacturer ??
-        "Unknown",
-        "-",
-        p.payload.name ??
-        p.payload.title
-    );
-
-});
-
-console.log("========================================");
-
-  console.log(
-    `Products Retrieved: ${retrievedProducts.length}`
-  );
+  console.log(`Products Retrieved from Vector DB: ${retrievedProducts.length}`);
 
   //----------------------------------------
   // Build Safe Filters
   //----------------------------------------
-
-  const safeFilters = buildSafeFilters(
-    plan.entities
-);
-  console.log("\n========== CONVERSATION STATE ==========");
-console.log(JSON.stringify(conversationState, null, 2));
-
-console.log("\n========== SAFE FILTERS ==========");
-console.log(JSON.stringify(safeFilters, null, 2));
-console.log("========================================");
-
-  console.log("\n========== SAFE FILTERS ==========");
-  console.log(
-    JSON.stringify(safeFilters, null, 2)
-  );
-  console.log("==================================\n");
+  const safeFilters = buildSafeFilters(plan.entities);
+  console.log("Safe Filters:", JSON.stringify(safeFilters, null, 2));
 
   //----------------------------------------
-  // Application Filtering
+  // Application Filtering (Strict Validation)
   //----------------------------------------
-
-  let filteredProducts = filterProducts(
-    retrievedProducts,
-    safeFilters
-  );
-
+  let filteredProducts = filterProducts(retrievedProducts, safeFilters);
   let fallbackHeader = "";
+  let isNoResult = false;
 
-  const isGamingQuery = /\b(gaming|game|gta|play|graphics|gpu|rtx)\b/i.test(customerMessage);
-  const budgetVal = safeFilters.maxbudget ?? safeFilters.budget;
+  if (filteredProducts.length === 0) {
+    console.log("⚠️ Strict filter returned 0 products. Finding closest alternatives from catalog...");
+    isNoResult = true;
 
-  if (isGamingQuery && budgetVal && Number(budgetVal) < 83000) {
-    const catalog = await getProducts();
-    const rtxLaptops = catalog.filter((p) => {
-      const text = `${p["Product Name"]} ${p["Graphic Processor"]} ${p["name"]}`.toLowerCase();
-      return text.includes("rtx");
-    });
+    // Describe the requested constraints
+    const constraintDesc = describeConstraints(safeFilters);
 
-    if (rtxLaptops.length > 0) {
-      // Find the cheapest RTX laptop
-      rtxLaptops.sort((a, b) => {
-        const priceA = parseFloat(String(a.Price).replace(/[^0-9.]/g, ""));
-        const priceB = parseFloat(String(b.Price).replace(/[^0-9.]/g, ""));
-        return priceA - priceB;
-      });
-
-      const cheapestRTX = rtxLaptops[0];
-      const cheapestRTXPrice = parseFloat(String(cheapestRTX.Price).replace(/[^0-9.]/g, ""));
-      const rtxName = cheapestRTX["Product Name"] ?? cheapestRTX.name ?? "RTX Laptop";
-
-      fallbackHeader = `💡 *Tip:* We don't have laptops with modern *RTX* graphics strictly under ₹${Number(budgetVal).toLocaleString('en-IN')}. However, if you can stretch your budget slightly to *₹${cheapestRTXPrice.toLocaleString('en-IN')}*, you can get the *${rtxName}* with an *${cheapestRTX["Graphic Processor"] || "RTX"}* GPU, which is highly recommended for modern gaming. \n\nHere are the best available gaming options within your budget:\n\n`;
-    }
-  }
-
-  if (filteredProducts.length === 0 && retrievedProducts.length > 0) {
-    console.log("⚠️ Strict filter returned 0 products. Retrying with relaxed filters...");
-
-    // Relax GPU, processor, and strict limits
+    // Relax GPU/processor to find closest catalog alternatives
     const relaxedFilters = { ...safeFilters };
     delete relaxedFilters.gpu;
     delete relaxedFilters.processor;
 
-    filteredProducts = filterProducts(retrievedProducts, relaxedFilters);
+    let alternativeProducts = filterProducts(retrievedProducts, relaxedFilters);
 
-    if (filteredProducts.length === 0) {
-      if (safeFilters.brand) {
-        // Restrict fallback recommendations to the requested brand only
-        const requestedBrand = String(safeFilters.brand).toLowerCase();
-        filteredProducts = retrievedProducts.filter(p => {
-          const b = String(p.payload.Brand || p.payload.brand || "").toLowerCase();
-          return b.includes(requestedBrand);
-        });
-        
-        // If we don't even have that brand, fall back to everything
-        if (filteredProducts.length === 0) {
-          filteredProducts = retrievedProducts;
-        }
-      } else {
-        filteredProducts = retrievedProducts;
-      }
+    if (alternativeProducts.length === 0) {
+      alternativeProducts = retrievedProducts;
     }
 
-    if (!fallbackHeader) {
-      if (safeFilters.brand && filteredProducts.length > 0 && filteredProducts[0].payload) {
-        const b = String(filteredProducts[0].payload.Brand || filteredProducts[0].payload.brand || safeFilters.brand);
-        fallbackHeader = `💡 *Note:* We couldn't find the exact model you requested, but here are the top recommended *${b}* laptops available in our store:\n\n`;
-      } else if (safeFilters.gpu) {
-        fallbackHeader = `💡 *Note:* We don't currently have laptops with *${safeFilters.gpu}* graphics in stock, but here are the top graphics laptops available in our store:\n\n`;
-      } else if (safeFilters.maxbudget || safeFilters.budget) {
-        fallbackHeader = `💡 *Note:* We couldn't find laptops strictly under ₹${Number(budgetVal).toLocaleString('en-IN')}, but here are the closest recommended options available:\n\n`;
-      } else {
-        fallbackHeader = `💡 *Note:* We couldn't find an exact match for all your specifications, but here are the top recommended laptops available:\n\n`;
-      }
+    filteredProducts = alternativeProducts;
+
+    if (constraintDesc) {
+      fallbackHeader = `Notice: We couldn't find a laptop in our catalog that satisfies all your exact requirements (${constraintDesc}). Here are the closest available options in our store catalog:\n\n`;
+    } else {
+      fallbackHeader = `Notice: We couldn't find an exact match for all your requested specifications. Here are the top available options in our store catalog:\n\n`;
     }
   }
-
-  console.log("\n========== FILTERED PRODUCTS ==========");
-
-filteredProducts.forEach((p, index) => {
-
-    console.log(
-        index + 1,
-        p.payload.Brand ??
-        p.payload.brand ??
-        p.payload.Manufacturer ??
-        "Unknown",
-        "-",
-        p.payload.name ??
-        p.payload.title
-    );
-
-});
-
-console.log("=======================================");
 
   //----------------------------------------
   // Ranking
   //----------------------------------------
+  const rankedProducts = ProductRanker.rankProducts(filteredProducts, safeFilters);
 
-  const rankedProducts = ProductRanker.rankProducts(
-    filteredProducts,
-    safeFilters
-);
-  console.log("\n========== PRODUCT RANKING ==========");
-
-  console.table(
-    rankedProducts.map((item) => ({
-      Score: item.score,
-      Reasons: item.reasons.join(", "),
-      Product:
-        item.product.payload.name ??
-        item.product.payload.title ??
-        item.product.payload.product ??
-        "Unknown",
-    }))
-  );
-
-  console.log("=====================================\n");
-
-  //----------------------------------------
-  // Deduplicate products by name and link to prevent repeated products
+  // Deduplicate products by name and link
   const uniqueRankedProducts: typeof rankedProducts = [];
   const seenNames = new Set<string>();
   const seenLinks = new Set<string>();
@@ -299,13 +118,18 @@ console.log("=======================================");
     .slice(0, 5)
     .map((item) => item.product);
 
+  const finalPayloads = topProducts.map((item) => item.payload);
+
+  if (finalPayloads.length === 0) {
+    return {
+      reply: `Sorry, we could not find any products matching your requirements in our store catalog.`,
+      products: []
+    };
+  }
+
   //----------------------------------------
   // Dynamic AI Response Generation
   //----------------------------------------
-
-  const finalPayloads = topProducts.map((item) => item.payload);
-  const isNoResult = finalPayloads.length === 0;
-
   let reply = "";
 
   try {
@@ -318,11 +142,7 @@ console.log("=======================================");
     reply = await aiService.generateText(prompt);
   } catch (err) {
     console.error("Failed to generate AI response, using fallback:", err);
-    if (isNoResult) {
-      reply = "Sorry, we could not find any products matching your requirements in our catalog.";
-    } else {
-      reply = (fallbackHeader || "") + formatSearchResponse(finalPayloads);
-    }
+    reply = (fallbackHeader || "") + formatSearchResponse(finalPayloads);
   }
 
   // Ensure no emojis in final reply
@@ -332,39 +152,35 @@ console.log("=======================================");
     reply: reply.trim(),
     products: finalPayloads,
   };
+}
 
+function describeConstraints(filters: Record<string, any>): string {
+  const parts: string[] = [];
+  if (filters.maxbudget || filters.budget) parts.push(`under ₹${Number(filters.maxbudget || filters.budget).toLocaleString('en-IN')}`);
+  if (filters.ram) parts.push(`${filters.ram} RAM`);
+  if (filters.processor) parts.push(`${filters.processor} processor`);
+  if (filters.gpu) parts.push(`${filters.gpu} GPU`);
+  if (filters.storage) parts.push(`${filters.storage} storage`);
+  if (filters.brand) parts.push(`${filters.brand} brand`);
+  return parts.join(", ");
 }
 
 function buildSafeFilters(
   conversationState: Record<string, any>
 ): Record<string, any> {
-
   const filters: Record<string, any> = {};
 
-  for (const [key, value] of Object.entries(
-    conversationState
-  )) {
-
-    if (
-      value === undefined ||
-      value === null ||
-      value === ""
-    ) {
+  for (const [key, value] of Object.entries(conversationState)) {
+    if (value === undefined || value === null || value === "") {
       continue;
     }
 
-    const normalizedKey = key
-      .toLowerCase()
-      .trim();
+    const normalizedKey = key.toLowerCase().trim();
 
-    if (
-      NON_FILTER_FIELDS.has(normalizedKey)
-    ) {
+    if (NON_FILTER_FIELDS.has(normalizedKey)) {
       continue;
     }
 
-    // Defensive check: If a weaker model puts subjective terms ("high-end", "fast") 
-    // into hardware fields, skip strict filtering if there are no numbers present.
     if (["gpu", "processor", "ram", "storage"].includes(normalizedKey)) {
       if (!/\d/.test(String(value))) {
         continue;
@@ -372,9 +188,7 @@ function buildSafeFilters(
     }
 
     filters[key] = value;
-
   }
 
   return filters;
-
 }

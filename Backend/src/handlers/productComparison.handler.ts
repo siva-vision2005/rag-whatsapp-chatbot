@@ -7,7 +7,8 @@ import { ChatResponse } from "../types/chatResponse";
 export async function handleProductComparison(
   entities: Record<string, any>,
   lastProducts: Record<string, any>[],
-  customerMessage = ""
+  customerMessage = "",
+  state?: Record<string, any>
 ): Promise<ChatResponse> {
 
   let selectedProducts: Record<string, any>[] = [];
@@ -17,7 +18,8 @@ export async function handleProductComparison(
 
     selectedProducts = await resolveComparisonProducts(
       fullEntities,
-      lastProducts
+      lastProducts,
+      state
     );
 
     if (selectedProducts.length < 2) {
@@ -67,12 +69,7 @@ export async function handleProductComparison(
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Mobile-first vertical spec list for each product
-// ─────────────────────────────────────────────────────────────
-
 function buildMobileComparisonCards(products: Record<string, any>[]): string {
-
   const getVal = (p: any, ...keys: string[]) => {
     for (const k of keys) {
       const v = p[k];
@@ -83,7 +80,6 @@ function buildMobileComparisonCards(products: Record<string, any>[]): string {
     return "N/A";
   };
 
-  // Pre-shorten common verbose values to fit in VALUE_W = 13 chars
   const shortCpu = (v: string) =>
     v.replace(/Intel\s+Core\s*/i, "").replace(/AMD\s*/i, "").trim();
 

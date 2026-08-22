@@ -3,14 +3,15 @@ import { searchProducts } from "../search/searchProducts";
 
 export async function resolveProduct(
   reference: any,
-  lastProducts: Record<string, any>[] = []
+  lastProducts: Record<string, any>[] = [],
+  state?: Record<string, any>
 ): Promise<Record<string, any> | null> {
 
   if (reference === undefined || reference === null) {
-    return null;
+    return state?.selectedProduct ?? state?.preferredProduct ?? (lastProducts.length > 0 ? lastProducts[0] : null);
   }
 
-  // Handle number index
+  // Handle number index (1-based index)
   if (typeof reference === "number") {
     if (reference >= 1 && reference <= lastProducts.length) {
       return lastProducts[reference - 1];
@@ -18,7 +19,6 @@ export async function resolveProduct(
     return null;
   }
 
-  // Handle object reference e.g. { brand: "Acer", budget: 50000 }
   let searchRaw = "";
   if (typeof reference === "object") {
     searchRaw = [
@@ -36,14 +36,31 @@ export async function resolveProduct(
 
   const search = searchRaw.trim().toLowerCase();
   if (!search) {
-    return null;
+    return state?.selectedProduct ?? state?.preferredProduct ?? (lastProducts.length > 0 ? lastProducts[0] : null);
+  }
+
+  // ----------------------------
+  // Preferred Product Check
+  // ----------------------------
+  if (/\b(preferred|favorite|favourite|liked)\b/i.test(search)) {
+    if (state?.preferredProduct) return state.preferredProduct;
+    if (lastProducts.length >= 2) return lastProducts[1]; // default 2nd item as fallback preferred if set
+  }
+
+  // ----------------------------
+  // Selected / Pronoun Check ("it", "its", "this", "that", "selected", "current")
+  // ----------------------------
+  if (/\b(it|its|this|that|current|selected|this laptop|that model|this product)\b/i.test(search) && !/\b(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th)\b/i.test(search)) {
+    if (state?.selectedProduct) return state.selectedProduct;
+    if (state?.preferredProduct) return state.preferredProduct;
+    if (lastProducts.length > 0) return lastProducts[0];
   }
 
   // ----------------------------
   // Ordinal references (first laptop, 2nd product, etc.)
   // ----------------------------
   const ordinalMatch = search.match(
-    /\b(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|this|that|previous|current)\b/
+    /\b(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|last|previous)\b/
   );
   const ordinalReference = ordinalMatch?.[1];
 
@@ -53,7 +70,8 @@ export async function resolveProduct(
     "third": 2, "3rd": 2,
     "fourth": 3, "4th": 3,
     "fifth": 4, "5th": 4,
-    "this": 0, "that": 0, "previous": 0, "current": 0
+    "last": lastProducts.length > 0 ? lastProducts.length - 1 : 0,
+    "previous": 0
   };
 
   if (ordinalReference && ordinalReference in ordinalMap) {
@@ -124,23 +142,19 @@ export async function resolveProduct(
       const payload = topResult.payload ?? {};
       const fullText = `${payload.Brand ?? ""} ${payload["Product Name"] ?? ""} ${payload.name ?? ""} ${payload.Series ?? ""} ${payload["Model Name"] ?? ""}`.toLowerCase();
 
-      // Check if at least one non-generic keyword from search query matches the payload text (using word boundaries to prevent substring matches like "pro" matching inside "processor")
       const searchKeywords = normalizedSearch.split(/\s+/).filter((w) => w.length > 2 && !["laptop", "specs", "tell", "about", "show", "need"].includes(w));
       const hasKeywordMatch = searchKeywords.some((kw) => {
         const escaped = kw.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         return new RegExp("\\b" + escaped + "\\b", "i").test(fullText);
       });
 
-      // Accept only if score is reasonably high OR at least 1 key word matches
       if (hasKeywordMatch || topResult.score >= 0.65) {
         return payload;
-      } else {
-        console.log(`⚠️ Vector fallback rejected low-relevance match "${fullText.substring(0, 30)}..." for query "${normalizedSearch}" (score: ${topResult.score})`);
       }
     }
   } catch (err) {
     console.error("Vector search fallback in resolveProduct failed:", err);
   }
 
-  return null;
+  return state?.selectedProduct ?? state?.preferredProduct ?? null;
 }
