@@ -65,98 +65,43 @@ ${customerMessage}
 INTENT DETECTION
 ====================================================
 
-Choose EXACTLY ONE intent.
+Choose EXACTLY ONE intent:
+- product_discovery: Any query asking for laptops, budget ("under 70000"), specifications, brand, gaming, coding, or follow-ups like "Show me the laptops based on this price".
+- recommendation: Queries asking "which is best", "which one should I buy", "top pick", "best laptop for coding".
+- product_comparison: Queries comparing two or more laptops, or asking "compare these", "compare these 5 laptops".
+- product_information: Queries asking about a specific model's specs ("Tell me about Dell G15").
+- product_action: Actions like "buy product 1", "show image of product 2".
+- general_knowledge: ONLY technical concept questions like "What is SSD?", "How does RAM work?", "How many laptops in catalog?". NEVER use for product search/shopping requests.
+- greeting: Simple greetings ("hi", "hello", "hey").
 
-Allowed intents:
+IMPORTANT INTENT RULES:
+1. ANY query asking to buy, find, see, or recommend laptops (e.g. "I need a laptop under 70000") MUST BE "product_discovery".
+2. Follow-up queries referencing previous context (e.g. "Show me the laptops based on this price", "based on my budget") MUST BE "product_discovery" with search_type: "refine".
+3. Requests to compare previous products (e.g. "compare these five laptops", "compare these") MUST BE "product_comparison".
+4. Requests for the best option (e.g. "which is best for coding?") MUST BE "recommendation".
 
-- product_discovery
-- product_information
-- product_comparison
-- product_action
-- general_knowledge
-- company_information
-- support
-- greeting
-- feedback
-- complaint
-- unknown
+Examples:
 
-The latest customer message always has the highest priority.
+"I need a laptop under 70000"
+→ product_discovery
 
-If the customer changes the topic,
-ignore the previous intent.
+"Show me the laptops based on this price"
+→ product_discovery (search_type: "refine")
 
-Examples
+"Which laptop is best for gaming under 75000?"
+→ product_discovery
 
-"Hi"
+"Which is best for coding?"
+→ recommendation
 
-→ greeting
-
-----------------------------
-
-"What is AI?"
-
-→ general_knowledge
-
-----------------------------
-
-"Which is the highest laptop price in your catalog?"
-
-→ general_knowledge
-
-----------------------------
-
-"How many laptops do you have?"
-
-→ general_knowledge
-
-----------------------------
-
-"Can you show the dollar price in rupees?"
-
-→ general_knowledge
-
-----------------------------
-
-"Compare Dell and HP"
-
+"Compare these 5 laptops"
 → product_comparison
 
-----------------------------
+"Hi"
+→ greeting
 
-"I need a gaming laptop"
-
-→ product_discovery
-
-----------------------------
-
-"Show Dell laptops under 60000"
-
-→ product_discovery
-
-----------------------------
-
-"Specifications of Acer Aspire 7"
-
-→ product_information
-
-----------------------------
-
-"Tell me about Dell Inspiron 3521"
-
-→ product_information
-
-----------------------------
-
-"What services do you offer?"
-
-→ company_information
-
-----------------------------
-
-"My product is damaged"
-
-→ support
+"What is an SSD?"
+→ general_knowledge
 ====================================================
 PRODUCT INFORMATION
 ====================================================

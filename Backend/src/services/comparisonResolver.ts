@@ -11,13 +11,13 @@ export async function resolveComparisonProducts(
     entities.comparison_products ??
     [];
 
-  // Detect "compare all / above / these / every" — return ALL products in memory, no limit
+  // Detect "compare all / above / these / five / laptops / them" — return ALL products in memory
   const rawMsg = String(entities.rawMessage ?? "").toLowerCase();
-  const isCompareAll = /\b(all|above|these|each|everything|entire|every)\b/.test(rawMsg);
+  const isCompareAll = /\b(all|above|these|each|everything|entire|every|them|laptop|laptops|product|products|options|choices|5|five|4|four|3|three|2|two)\b/i.test(rawMsg);
 
-  if (isCompareAll && lastProducts && lastProducts.length >= 2) {
-    console.log(`Customer requested to compare ALL ${lastProducts.length} products in memory (no limit).`);
-    return lastProducts; // NO .slice() — return every product
+  if ((isCompareAll || !references || references.length === 0) && lastProducts && lastProducts.length >= 2) {
+    console.log(`Customer requested to compare products in memory (${lastProducts.length} items).`);
+    return lastProducts;
   }
 
   if (Array.isArray(references) && references.length > 0 && !isCompareAll) {
