@@ -13,26 +13,21 @@ import { getCatalogMetadata } from "../catalog/catalog.service";
 function isNonLaptopQuery(message: string, entities: any = {}): boolean {
   const msg = message.toLowerCase().trim();
   
-  // Non-laptop brands/categories that the user might query
+  // Non-laptop standalone product categories (NOT components)
   const nonLaptopKeywords = [
     "iphone", "samsung galaxy", "galaxy s2", "galaxy s3", "galaxy s4", "galaxy note",
     "smartphone", "smartphones", "mobile phone", "mobile phones", "cellphone", "cellphones",
     "smart tv", "television", "smarttv", "refrigerator", "fridge", "washing machine",
-    "tablet", "ipad", "android tablet",
-    // PC Components
-    "ssd", "hdd", "hard drive", "solid state drive", "nvme", "sata",
-    "ram", "memory stick", "ddr4", "ddr5",
-    "motherboard", "processor", "cpu", "intel core alone", "graphics card", "gpu alone"
+    "tablet", "ipad", "android tablet"
   ];
   
-  // Check if any keyword matches
+  // Check if any standalone non-laptop product keyword matches
   const hasKeyword = nonLaptopKeywords.some(kw => msg.includes(kw));
   
-  // Check extracted category
+  // Check extracted category (standalone non-laptop categories only)
   const category = String(entities?.category ?? "").toLowerCase().trim();
   const nonLaptopCategories = [
-    "phone", "smartphone", "tv", "television", "mobile", "fridge", "appliance", "tablet", 
-    "ssd", "hdd", "ram", "processor", "component", "hardware"
+    "phone", "smartphone", "tv", "television", "mobile", "fridge", "appliance", "tablet"
   ];
   const hasNonLaptopCategory = nonLaptopCategories.some(cat => category.includes(cat));
 

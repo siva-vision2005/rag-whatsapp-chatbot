@@ -40,11 +40,11 @@ export async function handleProductComparison(
       recommendation = buildFallbackRecommendation(selectedProducts);
     }
 
-    const fullMessage = `📊 *LAPTOP COMPARISON*\n\n${table}\n\n────────────────────\n${recommendation}`;
+    const fullMessage = `*LAPTOP COMPARISON*\n\n${table}\n\n${recommendation}`;
 
     return {
       type: "text",
-      message: fullMessage,
+      message: fullMessage.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, ''),
       products: selectedProducts.map(p => ({ payload: p }))
     };
 
@@ -55,7 +55,7 @@ export async function handleProductComparison(
       const table = buildMobileComparisonCards(selectedProducts);
       return {
         type: "text",
-        message: `📊 *LAPTOP COMPARISON*\n\n${table}\n\n────────────────────\n${buildFallbackRecommendation(selectedProducts)}`,
+        message: `*LAPTOP COMPARISON*\n\n${table}\n\n${buildFallbackRecommendation(selectedProducts)}`.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, ''),
         products: selectedProducts.map(p => ({ payload: p }))
       };
     }
@@ -101,7 +101,7 @@ function buildMobileComparisonCards(products: Record<string, any>[]): string {
      .replace(/Windows /i, "Win ")
      .trim();
 
-  const badges = ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
+  const badges = ["1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "10."];
 
   const cards = products.map((p, idx) => {
     const name = String(p["Product Name"] ?? p.name ?? `Laptop ${idx + 1}`);
@@ -130,5 +130,5 @@ function buildMobileComparisonCards(products: Record<string, any>[]): string {
 
 function buildFallbackRecommendation(products: Record<string, any>[]): string {
   const names = products.map((p, i) => `*${p["Product Name"] ?? p.name ?? `Product ${i + 1}`}*`);
-  return `🏆 *Which is Best?*\n\n${names.join(", ")} – Review the specs above and choose the one that fits your budget and use case best.\n\nWould you like more details on any of these laptops?`;
+  return `*Which is Best?*\n\n${names.join(", ")} – Review the specs above and choose the one that fits your budget and use case best.\n\nWould you like more details on any of these laptops?`;
 }

@@ -4,6 +4,8 @@ import * as ProductRanker from "../ranking/productRanker";
 import { buildSearchQuery } from "../search/searchQueryBuilder";
 import { searchProducts } from "../search/searchProducts";
 import { getProducts } from "../services/googleSheets.service";
+import { aiService } from "../services/ai.service";
+import { buildGenerateResponsePrompt } from "../prompts/generateResponse.prompt";
 
 export interface ProductSearchResult {
   reply: string;
@@ -298,18 +300,37 @@ console.log("=======================================");
     .map((item) => item.product);
 
   //----------------------------------------
-  // Professional Formatter
+  // Dynamic AI Response Generation
   //----------------------------------------
 
-  const formattedReply = formatSearchResponse(
-    topProducts.map((item) => item.payload)
-  );
+  const finalPayloads = topProducts.map((item) => item.payload);
+  const isNoResult = finalPayloads.length === 0;
 
-  const reply = fallbackHeader ? fallbackHeader + formattedReply : formattedReply;
+  let reply = "";
+
+  try {
+    const prompt = buildGenerateResponsePrompt({
+      customerMessage,
+      products: finalPayloads,
+      fallbackHeader,
+      isNoResult
+    });
+    reply = await aiService.generateText(prompt);
+  } catch (err) {
+    console.error("Failed to generate AI response, using fallback:", err);
+    if (isNoResult) {
+      reply = "Sorry, we could not find any products matching your requirements in our catalog.";
+    } else {
+      reply = (fallbackHeader || "") + formatSearchResponse(finalPayloads);
+    }
+  }
+
+  // Ensure no emojis in final reply
+  reply = reply.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
 
   return {
-    reply,
-    products: topProducts.map((item) => item.payload),
+    reply: reply.trim(),
+    products: finalPayloads,
   };
 
 }
