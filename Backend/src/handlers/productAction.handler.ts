@@ -1,156 +1,90 @@
 import { resolveProduct } from "../services/productResolver";
-export interface ProductActionResponse {
-  type: "text" | "image";
-  message?: string;
-  product?: Record<string, any>;
-}
+import { ChatResponse } from "../types/chatResponse";
+import { formatProductInformation } from "../formatter/productInformationFormatter";
 
 export async function handleProductAction(
+  action: string,
   entities: Record<string, any>,
-  lastProducts: Record<string, any>[]
-): Promise<ProductActionResponse> {
-
-
-  const action = (entities.action ?? "").toLowerCase();
-  console.log("========== PRODUCT ACTION ==========");
-console.log(JSON.stringify(entities, null, 2));
-console.log("====================================");
+  lastProducts: Record<string, any>[] = [],
+  rawMessage: string = ""
+): Promise<ChatResponse> {
   const reference =
-  entities.productName ??
-  entities.model ??
-  entities.productNumber;
+    entities.productNumber ??
+    entities.product_number ??
+    entities.productName ??
+    entities.product_name ??
+    rawMessage;
 
-const product = await resolveProduct(
-  reference,
-  lastProducts
-);
+  const product = await resolveProduct(reference, lastProducts);
 
-if (!product) {
-  return {
-    type: "text",
-    message: "❌ I couldn't find that product."
-  };
+  if (!product) {
+    if (lastProducts && lastProducts.length > 0) {
+      // Fallback to top product in memory if user says "show me the product image"
+      const fallbackProduct = lastProducts[0];
+      return executeActionForProduct(action, fallbackProduct);
+    }
+    return {
+      type: "text",
+      message: "Sorry, I couldn't identify which product you are referring to. Please specify the product name or number."
+    };
+  }
+
+  return executeActionForProduct(action, product);
 }
 
-  switch (action) {
+function executeActionForProduct(action: string, product: Record<string, any>): ChatResponse {
+  const p = product;
+  const name = p["Product Name"] ?? p.name ?? p.title ?? "Laptop";
 
-    //----------------------------------------
-    // Product Link
-    //----------------------------------------
+  const rawImage = p.image || p.Image || p["Image URL"] || p["Image Url"] || p.image_url || p.Photo || p.photo;
+  const hasImage = typeof rawImage === "string" && rawImage.trim().length > 0;
 
-    case "link": {
+  const rawLink = p.link || p.url || p["Product Link"] || p["URL"] || p["Link"] || p["Product Url"];
+  const hasLink = typeof rawLink === "string" && (rawLink.startsWith("http://") || rawLink.startsWith("https://"));
 
-      const link =
-        product["Product URL"] ??
-        product["Product Link"] ??
-        product["Link"] ??
-        product["URL"] ??
-        product.link ??
-        product.url;
+  const actionType = String(action || "").toLowerCase().trim();
 
-      if (!link) {
-        return {
-          type: "text",
-          message: "❌ This product doesn't have a purchase link."
-        };
-      }
-
+  if (actionType === "image") {
+    if (!hasImage) {
       return {
         type: "text",
-        message: [
-          "🔗 Product Link",
-          "",
-          `💻 ${product["Product Name"] ?? product.name}`,
-          "",
-          link
-        ].join("\n")
+        message: `An image is not available for *${name}* in our product catalog.`
       };
     }
 
-    //----------------------------------------
-    // Product Details / Specifications
-    //----------------------------------------
-
-    case "details":
-    case "specifications": {
-
-      return {
-        type: "text",
-        message: JSON.stringify(product, null, 2)
-      };
-    }
-
-    //----------------------------------------
-    // Product Image
-    //----------------------------------------
-
-    case "image": {
-
-      return {
-        type: "image",
-        product
-      };
-    }
-
-    //----------------------------------------
-    // Product Price
-    //----------------------------------------
-
-    case "price": {
-
-      const price =
-        product["Price"] ??
-        product.price ??
-        "Not Available";
-
-      return {
-        type: "text",
-        message: `💰 ${product["Product Name"] ?? product.name}\n\nPrice: ${price}`
-      };
-    }
-
-    //----------------------------------------
-    // Buy
-    //----------------------------------------
-
-    case "buy": {
-
-      const link =
-        product["Product URL"] ??
-        product["Product Link"] ??
-        product["Link"] ??
-        product["URL"] ??
-        product.link ??
-        product.url;
-
-      if (!link) {
-        return {
-          type: "text",
-          message: "❌ Purchase link is not available for this product."
-        };
-      }
-
-      return {
-        type: "text",
-        message: [
-          "🛒 Buy Product",
-          "",
-          `💻 ${product["Product Name"] ?? product.name}`,
-          "",
-          link
-        ].join("\n")
-      };
-    }
-
-    //----------------------------------------
-    // Default
-    //----------------------------------------
-
-    default:
-
-      return {
-        type: "text",
-        message: "Sorry, I couldn't understand that request."
-      };
+    return {
+      type: "products",
+      message: `Here is the product image for *${name}*:`,
+      products: [{ payload: p }]
+    };
   }
+
+  if (actionType === "buy" || actionType === "link") {
+    if (!hasLink) {
+      return {
+        type: "text",
+        message: `A direct purchase URL is not available for *${name}* in our product catalog.`
+      };
+    }
+
+    return {
+      type: "products",
+      message: `You can view/purchase *${name}* directly using the link on the card below:`,
+      products: [{ payload: p }]
+    };
+  }
+
+  if (actionType === "price") {
+    const price = p.Price ?? p.price ?? "N/A";
+    return {
+      type: "text",
+      message: `The price for *${name}* is *₹${price}*.`
+    };
+  }
+
+  // Fallback to product info
+  return {
+    type: "text",
+    message: formatProductInformation(p)
+  };
 }

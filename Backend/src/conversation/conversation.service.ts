@@ -6,6 +6,7 @@ import { handleGeneralKnowledge } from "../handlers/generalKnowledge.handler";
 import { handleProductSearch } from "../handlers/productSearch.handler";
 import { handleProductComparison } from "../handlers/productComparison.handler";
 import { handleRecommendation } from "../handlers/recommendation.handler";
+import { handleProductAction } from "../handlers/productAction.handler";
 import { handleProductInformation } from "../services/handleProductInformation";
 import { ChatResponse } from "../types/chatResponse";
 import { getCatalogMetadata } from "../catalog/catalog.service";
@@ -196,6 +197,18 @@ export async function handleConversation(
       break;
     }
 
+    case "product_action": {
+      const currentConversation = getConversationState(userId);
+      const action = conversationResult.entities?.action || conversationResult.plan?.action || "image";
+      result = await handleProductAction(
+        String(action),
+        conversationResult.entities || {},
+        currentConversation.lastProducts,
+        message
+      );
+      break;
+    }
+
     case "product_information": {
       const reference =
         conversationResult.entities.productNumber ??
@@ -204,13 +217,10 @@ export async function handleConversation(
 
       const currentConversation = getConversationState(userId);
 
-      result = {
-        type: "text",
-        message: await handleProductInformation(
-          String(reference),
-          currentConversation.lastProducts
-        )
-      };
+      result = await handleProductInformation(
+        String(reference),
+        currentConversation.lastProducts
+      );
       break;
     }
 
