@@ -63,8 +63,11 @@ export default function ProductCard({ product }: Props) {
   const p = product.payload;
   const [imgError, setImgError] = useState(false);
 
+  // Try various common Google Sheet column names for images
+  const customImage = p.image || p.Image || p["Image URL"] || p["Image Url"] || p.image_url || p.Photo || p.photo;
+
   // Use the product's own image URL first, fall back to brand match
-  const imageUrl = !imgError && p.image ? p.image : resolveBrandImage(p.name || "");
+  const imageUrl = !imgError && customImage ? customImage : resolveBrandImage(p.name || "");
 
   return (
     <div className="mb-3 rounded-xl overflow-hidden border border-[#222e35] bg-[#182229] shadow-sm hover:scale-[1.01] transition-transform w-full max-w-full sm:max-w-[340px]">

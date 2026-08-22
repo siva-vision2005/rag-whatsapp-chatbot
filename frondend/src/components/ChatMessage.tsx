@@ -167,6 +167,7 @@ import { ChevronDown } from "lucide-react";
 export default function ChatMessage({ message, onInspect, isInspected, onDelete }: Props) {
   const isUser = message.sender === "user";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -176,7 +177,11 @@ export default function ChatMessage({ message, onInspect, isInspected, onDelete 
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("scroll", () => setIsMenuOpen(false), true);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("scroll", () => setIsMenuOpen(false), true);
+    };
   }, []);
 
   // Format timestamp (e.g. 10:45 AM)
@@ -193,9 +198,21 @@ export default function ChatMessage({ message, onInspect, isInspected, onDelete 
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setMenuPos({ x: e.clientX, y: e.clientY });
+    setIsMenuOpen(true);
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content);
+    setIsMenuOpen(false);
+  };
+
   return (
     <div className={`flex w-full mb-3.5 group ${isUser ? "justify-end" : "justify-start"}`}>
       <div
+        onContextMenu={handleContextMenu}
         className={`relative ${
           message.type === "products" || (message.products && message.products.length > 0)
             ? "w-full max-w-[95%] sm:max-w-[85%]"
@@ -221,7 +238,7 @@ export default function ChatMessage({ message, onInspect, isInspected, onDelete 
         )}
 
         {/* Meta Row: Timestamp and Ticks */}
-        <div className="absolute bottom-1 right-2 flex items-center gap-1.5 select-none">
+        <div className="absolute bottom-1 right-2 flex items-center gap-1.5 select-none pointer-events-none">
           {/* Timestamp */}
           <span className="text-[10px] text-[#8696a0]">
             {formatTime(message.timestamp)}
@@ -234,37 +251,39 @@ export default function ChatMessage({ message, onInspect, isInspected, onDelete 
             </span>
           )}
         </div>
-
-        {/* Hover Delete Dropdown */}
-        {onDelete && (
-          <div className="absolute top-1 right-2 opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMenuOpen(!isMenuOpen);
-              }}
-              className="text-[#8696a0] hover:text-white bg-gradient-to-l from-[#202c33] to-transparent pl-4"
-            >
-              <ChevronDown size={20} />
-            </button>
-
-            {isMenuOpen && (
-              <div className="absolute right-0 top-6 w-36 bg-[#233138] rounded shadow-xl py-2 z-50 text-[14.5px] text-[#e9edef] border border-[#222e35]">
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onDelete(message.id);
-                  }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-[#182229] transition-colors cursor-pointer text-red-400 hover:text-red-300"
-                >
-                  Delete message
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
       </div>
+
+      {/* Floating Context Menu (Fixed to viewport) */}
+      {isMenuOpen && (
+        <div 
+          ref={menuRef}
+          className="fixed bg-[#233138] rounded-xl shadow-2xl py-1 z-50 text-[14.5px] text-[#e9edef] border border-[#222e35] min-w-[150px] overflow-hidden"
+          style={{
+            top: `${Math.min(menuPos.y, window.innerHeight - 120)}px`,
+            left: `${Math.min(menuPos.x, window.innerWidth - 160)}px`,
+          }}
+        >
+          <button
+            onClick={handleCopy}
+            className="w-full text-left px-5 py-2.5 hover:bg-[#182229] transition-colors cursor-pointer block"
+          >
+            Copy
+          </button>
+          
+          {onDelete && (
+            <button
+              onClick={() => {
+                setIsMenuOpen(false);
+                onDelete(message.id);
+              }}
+              className="w-full text-left px-5 py-2.5 hover:bg-[#182229] transition-colors cursor-pointer block text-red-400 hover:text-red-300"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

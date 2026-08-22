@@ -1,22 +1,16 @@
 export default function TypingIndicator() {
   return (
-    <div className="flex justify-start mb-4">
-      <div className="bg-white rounded-2xl px-4 py-3 shadow max-w-xs">
-        <p className="text-sm text-gray-500 mb-2">
-          AI Product Assistant is typing...
-        </p>
-
-        <div className="flex gap-1">
-          <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></span>
-          <span
-            className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
-            style={{ animationDelay: "0.2s" }}
-          ></span>
-          <span
-            className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
-            style={{ animationDelay: "0.4s" }}
-          ></span>
-        </div>
+    <div className="flex w-full mb-3.5 justify-start pl-1">
+      <div className="px-3 py-2.5 rounded-xl shadow-sm bg-[#202c33] rounded-tl-none border border-[#222e35]/50 flex items-center gap-1.5 w-16 h-[34px]">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#8696a0] animate-bounce"></span>
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-[#8696a0] animate-bounce"
+          style={{ animationDelay: "0.2s" }}
+        ></span>
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-[#8696a0] animate-bounce"
+          style={{ animationDelay: "0.4s" }}
+        ></span>
       </div>
     </div>
   );

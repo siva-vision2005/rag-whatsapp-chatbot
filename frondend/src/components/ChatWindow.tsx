@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import { ChatMessage as Message, RAGMetadata } from "../types/message";
@@ -42,13 +42,26 @@ export default function ChatWindow({
   searchQuery = ""
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Automatically scroll to bottom when messages list updates or typing status changes
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      
+      // Briefly show date badges on new message
+      setIsScrolling(true);
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+      scrollTimeout.current = setTimeout(() => setIsScrolling(false), 2000);
     }
   }, [messages, isTyping]);
+
+  const handleScroll = () => {
+    setIsScrolling(true);
+    if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+    scrollTimeout.current = setTimeout(() => setIsScrolling(false), 2000);
+  };
 
   // Filter messages based on search query
   const filteredMessages = messages.filter((m) => 
@@ -72,6 +85,7 @@ export default function ChatWindow({
   return (
     <div 
       ref={scrollRef} 
+      onScroll={handleScroll}
       className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 flex flex-col bg-[#0b141a] relative min-h-0"
       style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='%231f2c34' fill-opacity='0.4'%3E%3Cpath fill-rule='evenodd' d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zM11 68c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm58-13c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zM31 38c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm18-23c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM31 73c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm34-47c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM15 47c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z'/%3E%3C/g%3E%3C/svg%3E")`,
@@ -91,7 +105,11 @@ export default function ChatWindow({
           groupedMessages.map((group) => (
             <div key={group.date} className="flex flex-col w-full">
               {/* Date Badge Separator */}
-              <div className="flex justify-center my-3 sticky top-2 z-10">
+              <div 
+                className={`flex justify-center my-3 sticky top-2 z-10 transition-opacity duration-300 ${
+                  isScrolling ? "opacity-100" : "opacity-0"
+                }`}
+              >
                 <span className="bg-[#182229]/90 backdrop-blur-sm text-[#8696a0] text-[11px] font-medium px-3 py-1.5 rounded-lg shadow-sm border border-[#222e35]/50 select-none">
                   {group.date}
                 </span>

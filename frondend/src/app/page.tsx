@@ -289,7 +289,7 @@ export default function Home() {
         const errorMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           sender: "assistant",
-          content: `❌ **Failed to reach Live RAG Endpoint**\n\nError: _${error.message || "Unknown error"}_.\n\nMake sure your server is running.`,
+          content: `Server is currently busy, please try again later.`,
           timestamp: new Date(),
         };
 
