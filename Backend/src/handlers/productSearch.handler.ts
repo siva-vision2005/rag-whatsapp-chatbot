@@ -14,7 +14,6 @@ const NON_FILTER_FIELDS = new Set([
   "name",
   "title",
   "product",
-  "product name",
   "description",
   "usage",
   "requirements",
@@ -25,7 +24,6 @@ const NON_FILTER_FIELDS = new Set([
   "excludedbrands",
   "softpreferences",
   "compareproducts",
-  "productname",
   "productnumber",
   "quantity"
 ]);
