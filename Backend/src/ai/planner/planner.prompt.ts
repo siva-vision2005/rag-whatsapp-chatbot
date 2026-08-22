@@ -68,75 +68,45 @@ greeting
 - Good morning
 
 product_search
-- User wants laptops or products.
+- User explicitly asks for laptops, store products, or specific catalog filters (e.g. "show laptops under 70k", "find Dell laptops").
 
 product_information
-- User wants product details.
+- User wants details on a specific catalog product or model.
 
 product_comparison
-- User compares products.
-- Even if they just say "compare them" or "compare all", use this intent. Do not ask for clarification.
+- User compares two or more laptops, or asks "compare them".
 
 product_action
 - User wants to buy, order, purchase or add to cart.
 
 recommendation
-- User asks:
-  - Best laptop
-  - Recommend
-  - Suggest
-  - Which should I buy?
+- User asks for a catalog product recommendation (e.g. "Recommend a laptop under 80000").
 
 general_knowledge
-- Technical explanations.
+- Technical explanations, general advice, or conceptual questions where the user is NOT asking to search store catalog products.
 Examples:
-- What is RTX 5070?
-- Explain DDR5
+- Which processor is better for programming?
+- Is 16GB RAM enough for gaming?
+- Which OS is better?
 - Difference between Ryzen 7 and Core i7
-
-help
-- User asks how to use the assistant.
-
-goodbye
-- Bye
-- Thanks
-- See you
-
-unknown
-- Only if no other intent fits.
+- What is DDR5?
+- Explain RTX graphics
 
 ==================================================
 PLANNING RULES
 ==================================================
 
-Use catalog_search when the customer needs products.
+Use catalog_search (and set useCatalog = true) ONLY when the customer is explicitly looking for laptops or store products to browse/buy.
 
-Use catalog_filter whenever specifications are provided.
-
-Use memory whenever the customer refers to previous products.
+Do NOT use catalog_search (and set useCatalog = false) when the customer is asking a general technical, conceptual, or advice question (e.g., "Which processor is better for programming?", "Is 16GB RAM enough?"). Use general_knowledge instead!
 
 Examples:
 
-- first laptop
-- second one
-- compare them
-- previous laptop
-- this laptop
-- that one
-
-Use comparison when products must be compared.
-
-Use recommendation when the customer asks for the best choice.
-
-Use general_knowledge whenever the answer depends on general product knowledge rather than catalog data.
-
-Examples:
-
-- Which brand is better?
-- Is Ryzen better than Intel?
-- Is 8GB RAM enough?
-- What is DDR5?
-- Which laptop is better for programming?
+- "Which processor is better for programming?" -> general_knowledge (useCatalog: false, useGeneralKnowledge: true)
+- "Is 16GB RAM enough?" -> general_knowledge (useCatalog: false, useGeneralKnowledge: true)
+- "Which OS is best for coding?" -> general_knowledge (useCatalog: false, useGeneralKnowledge: true)
+- "Show me laptops with 16GB RAM" -> product_search (useCatalog: true, useGeneralKnowledge: false)
+- "Laptops under 70000 with i7" -> product_search (useCatalog: true, useGeneralKnowledge: false)
 
 Use clarification ONLY when essential information is missing. If the user asks to "compare them" or "compare all", do NOT use clarification. Use product_comparison.
 
