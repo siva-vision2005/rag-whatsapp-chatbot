@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreVertical, ArrowLeft, Search } from "lucide-react";
+import { MoreVertical, ArrowLeft, Search, PlusCircle } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   onToggleSearch?: () => void;
   onClearChat?: () => void;
   onExportChat?: () => void;
+  onNewChat?: () => void;
 }
 
 export default function ChatHeader({
@@ -21,6 +22,7 @@ export default function ChatHeader({
   onToggleSearch,
   onClearChat,
   onExportChat,
+  onNewChat,
 }: Props) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -68,7 +70,18 @@ export default function ChatHeader({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2.5 text-[#aebac1]">
+      <div className="flex items-center gap-2 text-[#aebac1]">
+        {onNewChat && (
+          <button
+            onClick={onNewChat}
+            title="Start New Chat"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00a884] hover:bg-[#008f72] text-white rounded-lg transition-all cursor-pointer text-xs font-medium shadow-sm"
+          >
+            <PlusCircle size={15} />
+            <span className="hidden sm:inline">New Chat</span>
+          </button>
+        )}
+
         {onToggleSearch && (
           <button
             onClick={onToggleSearch}
@@ -91,6 +104,18 @@ export default function ChatHeader({
           {/* Dropdown Menu */}
           {isMenuOpen && (
             <div className="absolute right-0 top-12 w-48 bg-[#233138] rounded shadow-lg py-2 z-50 text-[14.5px] text-[#e9edef]">
+              {onNewChat && (
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onNewChat();
+                  }}
+                  className="w-full text-left px-5 py-3 hover:bg-[#182229] transition-colors cursor-pointer flex items-center gap-2 text-[#00a884]"
+                >
+                  <PlusCircle size={16} />
+                  <span>New Chat</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setIsMenuOpen(false);

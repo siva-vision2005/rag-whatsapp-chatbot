@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ChatHeader from "../components/ChatHeader";
 import ChatInput from "../components/ChatInput";
 import ChatWindow from "../components/ChatWindow";
 import { ChatMessage, RAGMetadata } from "../types/message";
 import { getMockRAGResponse } from "../utils/mockData";
+import { getOrCreateSessionId, createNewSessionId } from "../utils/session";
 import { 
   Search, 
   MessageSquarePlus, 
@@ -39,6 +40,10 @@ export default function Home() {
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [activeTab, setActiveTab] = useState<"chats" | "updates" | "communities" | "calls">("chats");
 
+  // User-specific Session ID stored securely in cookie
+  const [sessionId, setSessionId] = useState<string>("");
+  const hasAutoQueriedRef = useRef(false);
+
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 640);
@@ -55,8 +60,24 @@ export default function Home() {
     headers: "{}",
   });
 
-  // Contacts/Chats state - ONLY keeping AI Product Assistant
-  const [chats, setChats] = useState<ChatSession[]>([]);
+  const DEFAULT_GREETING: ChatMessage = {
+    id: "init-1",
+    sender: "assistant",
+    content: "Hello! I am your AI Product Assistant. I am connected to our product catalog. Ask me things like:\n- 'Suggest laptops for gaming under 80000'\n- 'Which laptop has the best battery life?'",
+    timestamp: new Date(),
+  };
+
+  // Contacts/Chats state - Single active AI Assistant session
+  const [chats, setChats] = useState<ChatSession[]>([
+    {
+      id: "ai-product-assistant",
+      contactName: "AI Product Assistant",
+      avatar: "🤖",
+      lastMessage: "Ask me about laptop specs or product choices!",
+      statusText: "online • Product Catalog DB",
+      messages: [DEFAULT_GREETING],
+    }
+  ]);
   const [activeChatId, setActiveChatId] = useState<string>("ai-product-assistant");
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -66,6 +87,12 @@ export default function Home() {
   const [chatSearchQuery, setChatSearchQuery] = useState("");
 
   const [isBackendOnline, setIsBackendOnline] = useState<boolean>(false);
+
+  // Initialize session ID from cookie on mount
+  useEffect(() => {
+    const sid = getOrCreateSessionId();
+    setSessionId(sid);
+  }, []);
 
   // Backend Health Check
   useEffect(() => {
@@ -120,56 +147,13 @@ export default function Home() {
     };
   }, [config.apiUrl, config.mode]);
 
-  // Initialize single chat session
-  useEffect(() => {
-    const initChats: ChatSession[] = [
-      {
-        id: "ai-product-assistant",
-        contactName: "AI Product Assistant",
-        avatar: "🤖",
-        lastMessage: "Ask me about laptop specs or product choices!",
-        statusText: "online • Product Catalog DB",
-        messages: [
-          {
-            id: "init-1",
-            sender: "assistant",
-            content: "Hello! I am your AI Product Assistant. I am connected to our product catalog. Ask me things like:\n- 'Suggest laptops for gaming under 80000'\n- 'Which laptop has the best battery life?'",
-            timestamp: new Date(),
-          }
-        ]
-      }
-    ];
-
-    const savedChats = localStorage.getItem("rag_chat_history_v4");
-    if (savedChats) {
-      try {
-        const parsed = JSON.parse(savedChats);
-        const hydrated = parsed.map((c: any) => ({
-          ...c,
-          messages: c.messages.map((m: any) => ({
-            ...m,
-            timestamp: new Date(m.timestamp)
-          }))
-        }));
-        setChats(hydrated);
-      } catch (e) {
-        setChats(initChats);
-      }
-    } else {
-      setChats(initChats);
-    }
-  }, []);
-
-  const saveChatsToStorage = (updatedChats: ChatSession[]) => {
-    setChats(updatedChats);
-    localStorage.setItem("rag_chat_history_v4", JSON.stringify(updatedChats));
-  };
-
   const activeChat = chats.find((c) => c.id === activeChatId) || chats[0];
 
   // Send message handler
   const sendMessage = async (text: string) => {
     if (!text.trim() || !activeChat) return;
+
+    const currentSessionId = sessionId || getOrCreateSessionId();
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -178,7 +162,7 @@ export default function Home() {
       timestamp: new Date(),
     };
 
-    // Append user message
+    // Append user message to active chat
     const updatedChats = chats.map((chat) => {
       if (chat.id === activeChat.id) {
         return {
@@ -189,7 +173,7 @@ export default function Home() {
       }
       return chat;
     });
-    saveChatsToStorage(updatedChats);
+    setChats(updatedChats);
     setIsTyping(true);
 
     if (config.mode === "demo") {
@@ -219,7 +203,7 @@ export default function Home() {
       });
 
       setIsTyping(false);
-      saveChatsToStorage(finalChats);
+      setChats(finalChats);
 
     } else {
       // --- LIVE BACKEND MODE ---
@@ -229,7 +213,9 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: text,
-            chatId: activeChat.id,
+            sessionId: currentSessionId,
+            userId: currentSessionId,
+            chatId: currentSessionId,
           }),
         });
 
@@ -280,7 +266,7 @@ export default function Home() {
           }
           return chat;
         });
-        saveChatsToStorage(finalChats);
+        setChats(finalChats);
 
       } catch (error: any) {
         console.error(error);
@@ -303,10 +289,66 @@ export default function Home() {
           }
           return chat;
         });
-        saveChatsToStorage(finalChats);
+        setChats(finalChats);
       }
     }
   };
+
+  // Start a fresh user session with a new unique session ID in cookie
+  const handleNewChat = async () => {
+    const oldSessionId = sessionId;
+    const newSid = createNewSessionId();
+    setSessionId(newSid);
+
+    // Notify backend to clear memory for previous session
+    if (config.mode === "live" && oldSessionId) {
+      try {
+        let clearUrl = config.apiUrl;
+        try {
+          const parsed = new URL(config.apiUrl);
+          clearUrl = `${parsed.protocol}//${parsed.host}/chat/clear`;
+        } catch (e) {
+          clearUrl = config.apiUrl.replace(/\/chat\/?$/, "/chat/clear");
+        }
+
+        fetch(clearUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: oldSessionId }),
+        }).catch(() => {});
+      } catch (e) {
+        // ignore error on clear notify
+      }
+    }
+
+    const resetChats = chats.map((chat) => {
+      if (chat.id === activeChatId) {
+        return {
+          ...chat,
+          lastMessage: "Ask me about laptop specs or product choices!",
+          messages: [DEFAULT_GREETING],
+        };
+      }
+      return chat;
+    });
+    setChats(resetChats);
+  };
+
+  // Auto-search query parameter from URL (e.g. ?product=Dell%20G15 or ?query=RTX%204050)
+  useEffect(() => {
+    if (typeof window === "undefined" || hasAutoQueriedRef.current) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const initialQuery = params.get("product") || params.get("query") || params.get("p");
+
+    if (initialQuery && initialQuery.trim()) {
+      hasAutoQueriedRef.current = true;
+      // Auto-trigger product search once
+      setTimeout(() => {
+        sendMessage(initialQuery.trim());
+      }, 500);
+    }
+  }, [config.apiUrl]);
 
   const clearChatHistory = () => {
     if (!activeChat) return;
@@ -320,7 +362,7 @@ export default function Home() {
       }
       return chat;
     });
-    saveChatsToStorage(clearedChats);
+    setChats(clearedChats);
   };
 
   const deleteMessage = (messageId: string) => {
@@ -336,7 +378,7 @@ export default function Home() {
       }
       return chat;
     });
-    saveChatsToStorage(updatedChats);
+    setChats(updatedChats);
   };
 
   const exportChat = () => {
@@ -485,7 +527,11 @@ export default function Home() {
             {/* Floating Action Button (FAB) on Mobile */}
             {isMobile && (
               <button
-                onClick={() => alert("New AI Product Chat initiated!")}
+                onClick={() => {
+                  handleNewChat();
+                  setMobileView("chat");
+                }}
+                title="New Chat"
                 className="absolute bottom-20 right-4 w-12 h-12 bg-[#00a884] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform hover:bg-[#008f72] cursor-pointer"
               >
                 <MessageSquarePlus size={22} />
@@ -560,6 +606,7 @@ export default function Home() {
                   onToggleSearch={() => setIsChatSearchActive(!isChatSearchActive)}
                   onClearChat={clearChatHistory}
                   onExportChat={exportChat}
+                  onNewChat={handleNewChat}
                 />
                 
                 {/* Active Search Bar in Chat Stream */}

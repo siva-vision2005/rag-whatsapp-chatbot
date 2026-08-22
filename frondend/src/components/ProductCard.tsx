@@ -69,31 +69,50 @@ export default function ProductCard({ product }: Props) {
   // Use the product's own image URL first, fall back to brand match
   const imageUrl = !imgError && customImage ? customImage : resolveBrandImage(p.name || "");
 
-  return (
-    <div className="mb-3 rounded-xl overflow-hidden border border-[#222e35] bg-[#182229] shadow-sm hover:scale-[1.01] transition-transform w-full max-w-full sm:max-w-[340px]">
-      {/* Product Image */}
-      <img
-        src={imageUrl}
-        alt={p.name || "Product"}
-        className="w-full h-44 object-cover select-none"
-        onError={() => setImgError(true)}
-        loading="lazy"
-      />
+  // Extract authentic catalog purchase URL from Google Sheet/Qdrant payload
+  const rawProductUrl = p.link || p.url || p["Product Link"] || p["URL"] || p["Link"] || p["Product Url"];
+  const isValidUrl = typeof rawProductUrl === "string" && (rawProductUrl.startsWith("http://") || rawProductUrl.startsWith("https://"));
 
-      {/* Product Name + Price footer */}
-      <div className="p-3 bg-[#182229] border-t border-[#222e35]/30">
-        <h4
-          className="text-[13px] font-medium text-[#e9edef] line-clamp-2 leading-tight"
-          title={p.name}
-        >
-          {p.name}
-        </h4>
-        {p.price && (
-          <p className="text-[13px] text-[#00a884] font-bold mt-1">
-            ₹{p.price}
-          </p>
-        )}
+  return (
+    <div className="mb-3 rounded-xl overflow-hidden border border-[#222e35] bg-[#182229] shadow-sm hover:scale-[1.01] transition-transform w-full max-w-full sm:max-w-[340px] flex flex-col justify-between">
+      <div>
+        {/* Product Image */}
+        <img
+          src={imageUrl}
+          alt={p.name || "Product"}
+          className="w-full h-44 object-cover select-none"
+          onError={() => setImgError(true)}
+          loading="lazy"
+        />
+
+        {/* Product Name + Price footer */}
+        <div className="p-3 bg-[#182229] border-t border-[#222e35]/30">
+          <h4
+            className="text-[13px] font-medium text-[#e9edef] line-clamp-2 leading-tight"
+            title={p.name}
+          >
+            {p.name}
+          </h4>
+          {p.price && (
+            <p className="text-[13px] text-[#00a884] font-bold mt-1">
+              ₹{p.price}
+            </p>
+          )}
+        </div>
       </div>
+
+      {isValidUrl && (
+        <div className="px-3 pb-3 pt-0">
+          <a
+            href={rawProductUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full block text-center bg-[#00a884] hover:bg-[#008f72] text-white font-medium text-xs py-1.5 px-3 rounded-lg transition-colors shadow-sm"
+          >
+            View Product
+          </a>
+        </div>
+      )}
     </div>
   );
 }
